@@ -24,9 +24,9 @@ export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHe
       className="hero-card"
       style={
         {
-          "--brand-primary": tenant.branding?.primaryColor ?? "#b43a20",
-          "--brand-accent": tenant.branding?.accentColor ?? "#ff9b5e",
-          "--brand-surface": tenant.branding?.surfaceColor ?? "#fff7f1"
+          "--brand-primary": "#2563EB",
+          "--brand-accent": "#3B82F6",
+          "--brand-surface": "#DBEAFE"
         } as CSSProperties
       }
     >
@@ -44,9 +44,9 @@ export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHe
             {tenant.logo_url ? <img src={tenant.logo_url} alt={`${tenant.restaurant_name} logo`} /> : null}
           </div>
           <div className="hero-brand-copy">
-            <p className="eyebrow">Pickup web-app</p>
+            <p className="eyebrow">Orden online</p>
             <h1>{tenant.restaurant_name}</h1>
-            <p className="hero-meta">Ordena en minutos y recoge cuando quieras</p>
+            <p className="hero-meta">Pide en minutos y retira sin esperas</p>
           </div>
         </div>
         <p className="hero-copy">{welcomeText}</p>
