@@ -1,0 +1,8 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="160" rx="40" fill="#B43A20"/>
+  <circle cx="80" cy="80" r="52" fill="#FFF0E6"/>
+  <path d="M48 87c0-13 14-23 32-23s32 10 32 23H48Z" fill="#F8B35D"/>
+  <rect x="46" y="90" width="68" height="11" rx="5.5" fill="#7E2A13"/>
+  <rect x="54" y="101" width="52" height="12" rx="6" fill="#F2D56A"/>
+  <text x="80" y="38" text-anchor="middle" fill="#FFF0E6" font-family="Verdana, sans-serif" font-size="18" font-weight="700">BN</text>
+</svg>
