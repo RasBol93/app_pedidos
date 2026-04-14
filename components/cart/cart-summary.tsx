@@ -13,6 +13,8 @@ type CartSummaryProps = {
   onUpdateQuantity: (sku: string, quantity: number) => void;
   onRemove: (sku: string) => void;
   showCheckoutButton?: boolean;
+  primaryActionHref?: string;
+  primaryActionLabel?: string;
 };
 
 export function CartSummary({
@@ -22,7 +24,9 @@ export function CartSummary({
   total,
   onUpdateQuantity,
   onRemove,
-  showCheckoutButton = true
+  showCheckoutButton = true,
+  primaryActionHref = "/payment",
+  primaryActionLabel = "Continuar"
 }: CartSummaryProps) {
   return (
     <div className="summary-card">
@@ -77,8 +81,8 @@ export function CartSummary({
           <TenantLink href="/" tenantId={tenantId} className="button button-secondary">
             Seguir viendo menu
           </TenantLink>
-          <TenantLink href="/checkout" tenantId={tenantId} className="button button-primary">
-            Ir al checkout
+          <TenantLink href={primaryActionHref} tenantId={tenantId} className="button button-primary">
+            {primaryActionLabel}
           </TenantLink>
         </div>
       ) : null}

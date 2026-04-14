@@ -4,25 +4,25 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCartContext } from "@/context/cart-context";
+import { useOrderFlowContext } from "@/context/order-flow-context";
 import { formatCurrency } from "@/lib/format";
 import { buildTenantHref } from "@/lib/tenant";
 import { createOrder, uploadPaymentProof } from "@/services/webapp-api";
 import type { CartItem, WebappBootstrap } from "@/types/webapp";
 
-type CheckoutFormProps = {
+type PaymentFormProps = {
   tenantId: string;
   bootstrap: WebappBootstrap;
   items: CartItem[];
   total: number;
 };
 
-export function CheckoutForm({ tenantId, bootstrap, items, total }: CheckoutFormProps) {
+export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormProps) {
   const router = useRouter();
   const cart = useCartContext();
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [requestedTime, setRequestedTime] = useState(bootstrap.open_status.pickup_slots[0] ?? "");
-  const [notes, setNotes] = useState("");
+  const orderFlow = useOrderFlowContext();
+  const draft = orderFlow.getDraft(tenantId);
+
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -48,25 +48,25 @@ export function CheckoutForm({ tenantId, bootstrap, items, total }: CheckoutForm
       !bootstrap.open_status.can_place_order ||
       items.length === 0 ||
       !proofFile ||
-      !customerName.trim() ||
-      !customerPhone.trim() ||
-      !requestedTime
+      !draft.customer_name.trim() ||
+      !draft.customer_phone.trim() ||
+      !draft.requested_time
     );
   }, [
     bootstrap.open_status.can_place_order,
-    customerName,
-    customerPhone,
+    draft.customer_name,
+    draft.customer_phone,
+    draft.requested_time,
     isSubmitting,
     items.length,
-    proofFile,
-    requestedTime
+    proofFile
   ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (isDisabled || !proofFile) {
-      setError("Completa los datos requeridos y sube el comprobante de pago.");
+      setError("Completa tus datos en el carrito y sube el comprobante de pago.");
       return;
     }
 
@@ -84,21 +84,37 @@ export function CheckoutForm({ tenantId, bootstrap, items, total }: CheckoutForm
 
       const order = await createOrder({
         tenant_id: tenantId,
-        customer_name: customerName.trim(),
-        customer_phone: customerPhone.trim(),
-        requested_time: requestedTime,
+        customer_name: draft.customer_name.trim(),
+        customer_phone: draft.customer_phone.trim(),
+        requested_time: draft.requested_time,
         items: orderItems,
         items_snapshot: orderItems,
         total_amount: total,
-        notes: notes.trim(),
+        notes: draft.notes.trim(),
         payment_proof_file: upload.file_reference,
         source: "webapp",
         delivery_type: "pickup",
         status: "pending_payment_review"
       });
 
+      orderFlow.setConfirmation(tenantId, {
+        order_id: order.order_id,
+        tenant_id: tenantId,
+        customer_name: draft.customer_name.trim(),
+        customer_phone: draft.customer_phone.trim(),
+        requested_time: draft.requested_time,
+        notes: draft.notes.trim(),
+        items: orderItems,
+        total_amount: total,
+        status: "pending_payment_review",
+        payment_proof_file: upload.file_reference,
+        payment_proof_name: proofFile.name,
+        created_at: new Date().toISOString()
+      });
+
+      orderFlow.clearDraft(tenantId);
       cart.clearCart(tenantId);
-      router.push(buildTenantHref("/order-status", tenantId, { order_id: order.order_id }));
+      router.push(buildTenantHref("/confirmation", tenantId, { order_id: order.order_id }));
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -115,60 +131,33 @@ export function CheckoutForm({ tenantId, bootstrap, items, total }: CheckoutForm
       <section className="form-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Checkout</p>
-            <h2>Datos de pickup</h2>
+            <p className="eyebrow">Pago QR</p>
+            <h2>Total a pagar</h2>
           </div>
+          <strong>{formatCurrency(total, bootstrap.tenant.currency)}</strong>
         </div>
 
-        {!bootstrap.open_status.can_place_order ? (
-          <div className="alert alert-danger">{bootstrap.open_status.message}</div>
-        ) : (
-          <div className="alert alert-success">
-            {bootstrap.open_status.message} Horario de hoy: {bootstrap.open_status.today_hours_label}
+        <div className="mini-summary">
+          <div>
+            <span>Cliente</span>
+            <strong>{draft.customer_name}</strong>
           </div>
-        )}
-
-        <label className="field">
-          <span>Nombre</span>
-          <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
-        </label>
-
-        <label className="field">
-          <span>Telefono</span>
-          <input
-            type="tel"
-            inputMode="tel"
-            value={customerPhone}
-            onChange={(event) => setCustomerPhone(event.target.value)}
-          />
-        </label>
-
-        <label className="field">
-          <span>Hora de pickup</span>
-          <select
-            value={requestedTime}
-            onChange={(event) => setRequestedTime(event.target.value)}
-            disabled={!bootstrap.open_status.can_place_order}
-          >
-            {bootstrap.open_status.pickup_slots.map((slot) => (
-              <option key={slot} value={slot}>
-                {slot}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Notas para cocina (opcional)</span>
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} />
-        </label>
+          <div>
+            <span>Telefono</span>
+            <strong>{draft.customer_phone}</strong>
+          </div>
+          <div>
+            <span>Pickup</span>
+            <strong>{draft.requested_time}</strong>
+          </div>
+        </div>
       </section>
 
       <section className="form-card">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Pago</p>
-            <h2>QR o transferencia</h2>
+            <h2>Escanea el QR</h2>
           </div>
         </div>
         <p className="payment-copy">{bootstrap.payment_info.instructions}</p>
@@ -203,27 +192,6 @@ export function CheckoutForm({ tenantId, bootstrap, items, total }: CheckoutForm
             {previewUrl ? <img src={previewUrl} alt="Preview del comprobante" className="preview-image" /> : null}
           </div>
         ) : null}
-      </section>
-
-      <section className="form-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Resumen final</p>
-            <h2>Total a pagar</h2>
-          </div>
-          <strong>{formatCurrency(total, bootstrap.tenant.currency)}</strong>
-        </div>
-
-        <div className="mini-summary">
-          {items.map((item) => (
-            <div key={item.sku}>
-              <span>
-                {item.quantity} x {item.name}
-              </span>
-              <strong>{formatCurrency(item.price * item.quantity, bootstrap.tenant.currency)}</strong>
-            </div>
-          ))}
-        </div>
 
         {error ? <div className="alert alert-danger">{error}</div> : null}
 

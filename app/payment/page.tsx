@@ -1,5 +1,5 @@
 import { PaymentScreen } from "@/components/screens/payment-screen";
 
-export function CheckoutScreen() {
+export default function PaymentPage() {
   return <PaymentScreen />;
 }

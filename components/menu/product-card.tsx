@@ -4,25 +4,49 @@ import type { MenuItem } from "@/types/webapp";
 type ProductCardProps = {
   item: MenuItem;
   currency: string;
-  onAdd: (item: MenuItem) => void;
+  quantity: number;
+  onIncrement: (item: MenuItem) => void;
+  onDecrement: (item: MenuItem) => void;
 };
 
-export function ProductCard({ item, currency, onAdd }: ProductCardProps) {
+export function ProductCard({
+  item,
+  currency,
+  quantity,
+  onIncrement,
+  onDecrement
+}: ProductCardProps) {
   return (
     <article className="product-card">
-      <div className="product-copy">
-        <span className="product-sku">{item.sku}</span>
-        <h3>{item.name}</h3>
-        <p className="product-description">{item.description || "Descripcion disponible pronto."}</p>
-        <div className="product-footer">
-          <strong>{formatCurrency(item.price, currency)}</strong>
-          <button type="button" className="button button-primary button-small" onClick={() => onAdd(item)}>
-            Agregar
-          </button>
-        </div>
-      </div>
       <div className="product-image">
         {item.photo_url ? <img src={item.photo_url} alt={item.name} /> : <span>Sin foto</span>}
+      </div>
+      <div className="product-copy">
+        <h3>{item.name}</h3>
+        {item.description ? <p className="product-description">{item.description}</p> : null}
+        <div className="product-footer">
+          <strong className="product-price">{formatCurrency(item.price, currency)}</strong>
+          {quantity > 0 ? (
+            <div className="product-stepper" aria-label={`Cantidad de ${item.name}`}>
+              <button type="button" className="product-stepper-button" onClick={() => onDecrement(item)}>
+                -
+              </button>
+              <span className="product-stepper-value">{quantity}</span>
+              <button type="button" className="product-stepper-button" onClick={() => onIncrement(item)}>
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="button button-primary button-small product-add-button"
+              onClick={() => onIncrement(item)}
+              aria-label={`Agregar ${item.name}`}
+            >
+              +
+            </button>
+          )}
+        </div>
       </div>
     </article>
   );

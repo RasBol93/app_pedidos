@@ -1,7 +1,6 @@
 "use client";
 
-import { CartSummary } from "@/components/cart/cart-summary";
-import { CartCheckoutPanel } from "@/components/cart/cart-checkout-panel";
+import { PaymentForm } from "@/components/payment/payment-form";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -12,7 +11,7 @@ import { useOrderFlowContext } from "@/context/order-flow-context";
 import { useBootstrap } from "@/hooks/use-bootstrap";
 import { useTenantId } from "@/hooks/use-tenant-id";
 
-export function CartScreen() {
+export function PaymentScreen() {
   const tenantId = useTenantId();
   const cart = useCartContext();
   const orderFlow = useOrderFlowContext();
@@ -35,36 +34,37 @@ export function CartScreen() {
   }
 
   const items = cart.getItems(tenantId);
+  const draft = orderFlow.getDraft(tenantId);
+
+  if (
+    items.length === 0 ||
+    !draft.customer_name.trim() ||
+    !draft.customer_phone.trim() ||
+    !draft.requested_time
+  ) {
+    return (
+      <PageShell contentClassName="page-shell-padding">
+        <AppHeader tenant={data.tenant} content={data.content} tenantId={tenantId} activePath="/" />
+        <EmptyState
+          title="Primero completa tu carrito"
+          message="Antes de pagar, necesitamos que revises los items y definas tus datos de pickup."
+          actionLabel="Ir al carrito"
+          actionHref="/cart"
+          tenantId={tenantId}
+        />
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell contentClassName="page-shell-padding">
       <AppHeader tenant={data.tenant} content={data.content} tenantId={tenantId} activePath="/" />
-      {items.length === 0 ? (
-        <EmptyState
-          title="Tu carrito esta vacio"
-          message="Agrega algunos productos para continuar con tu pedido."
-          actionLabel="Ver menu"
-          actionHref="/"
-          tenantId={tenantId}
-        />
-      ) : (
-        <div className="screen-stack">
-          <CartSummary
-            tenantId={tenantId}
-            items={items}
-            currency={data.tenant.currency}
-            total={cart.getSubtotal(tenantId)}
-            onUpdateQuantity={(sku, quantity) => cart.updateQuantity(tenantId, sku, quantity)}
-            onRemove={(sku) => cart.removeItem(tenantId, sku)}
-            showCheckoutButton={false}
-          />
-          <CartCheckoutPanel
-            tenantId={tenantId}
-            bootstrap={data}
-            totalItems={items.length}
-          />
-        </div>
-      )}
+      <PaymentForm
+        tenantId={tenantId}
+        bootstrap={data}
+        items={items}
+        total={cart.getSubtotal(tenantId)}
+      />
     </PageShell>
   );
 }

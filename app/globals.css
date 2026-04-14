@@ -263,6 +263,12 @@ img {
   gap: 16px;
 }
 
+.screen-stack,
+.confirmation-grid {
+  display: grid;
+  gap: 16px;
+}
+
 .menu-section,
 .form-card,
 .summary-card,

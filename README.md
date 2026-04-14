@@ -31,21 +31,19 @@ npm run dev
 ## Flujo V1 incluido
 
 - Carga de tenant por `tenant_id`
-- Home/Menu principal
-- Vista por categoria
+- Menu principal con categorias y productos en una sola pantalla scrollable
 - Carrito persistido por tenant en `localStorage`
-- Checkout pickup con slots
-- Instrucciones de pago QR / transferencia
-- Subida simple de comprobante
-- Envio de pedido
-- Pantallas de FAQ, ubicacion, horarios y estado final
+- Pantalla de carrito con edicion, datos del cliente, pickup y totales
+- Pantalla separada de pago QR / transferencia
+- Pantalla separada de confirmacion con recap del pedido
+- Pantallas de FAQ, ubicacion y horarios
 
 ## Estructura
 
 ```text
 app/
   api/webapp/...         Mock backend contracts
-  cart/ checkout/ ...    Rutas principales
+  cart/ payment/ ...     Rutas principales
 components/
   cart/ checkout/ info/ menu/ order/ shared/
   screens/               Pantallas por ruta
@@ -179,3 +177,15 @@ Sin implementar aun, pero la base ya deja lugar para:
 ## Nota de este entorno
 
 En este workspace no estaban instalados `node`, `npm`, `git` ni `rg`, asi que no pude ejecutar build/lint localmente desde aqui. La entrega queda estructurada y lista para correr apenas el entorno tenga Node.js.
+
+## Rutas del flujo
+
+- `/` menu
+- `/cart` carrito + pickup + datos del pedido
+- `/payment` pago QR
+- `/confirmation` confirmacion final
+
+Compatibilidad:
+
+- `/checkout` funciona como alias hacia la pantalla de pago
+- `/order-status` funciona como alias hacia la confirmacion

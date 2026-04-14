@@ -6,13 +6,24 @@ type MenuSectionProps = {
   title: string;
   items: MenuItem[];
   currency: string;
-  onAdd: (item: MenuItem) => void;
+  sectionId?: string;
+  quantities?: Record<string, number>;
+  onIncrement: (item: MenuItem) => void;
+  onDecrement: (item: MenuItem) => void;
 };
 
-export function MenuSection({ title, items, currency, onAdd }: MenuSectionProps) {
+export function MenuSection({
+  title,
+  items,
+  currency,
+  sectionId,
+  quantities,
+  onIncrement,
+  onDecrement
+}: MenuSectionProps) {
   return (
-    <section className="menu-section">
-      <div className="section-heading">
+    <section className="menu-section" id={sectionId}>
+      <div className="section-heading menu-section-heading">
         <div>
           <p className="eyebrow">Categoria</p>
           <h2>{title}</h2>
@@ -21,7 +32,14 @@ export function MenuSection({ title, items, currency, onAdd }: MenuSectionProps)
       </div>
       <div className="product-list">
         {items.map((item) => (
-          <ProductCard key={item.sku} item={item} currency={currency} onAdd={onAdd} />
+          <ProductCard
+            key={item.sku}
+            item={item}
+            currency={currency}
+            quantity={quantities?.[item.sku] ?? 0}
+            onIncrement={onIncrement}
+            onDecrement={onDecrement}
+          />
         ))}
       </div>
     </section>

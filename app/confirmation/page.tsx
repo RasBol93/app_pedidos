@@ -1,5 +1,5 @@
 import { ConfirmationScreen } from "@/components/screens/confirmation-screen";
 
-export function OrderStatusScreen() {
+export default function ConfirmationPage() {
   return <ConfirmationScreen />;
 }

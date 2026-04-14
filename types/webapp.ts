@@ -129,3 +129,25 @@ export type UploadPaymentProofResponse = {
   file_reference: string;
   original_name: string;
 };
+
+export type CheckoutDraft = {
+  customer_name: string;
+  customer_phone: string;
+  requested_time: string;
+  notes: string;
+};
+
+export type SubmittedOrderRecap = {
+  order_id: string;
+  tenant_id: string;
+  customer_name: string;
+  customer_phone: string;
+  requested_time: string;
+  notes?: string;
+  items: CreateOrderItemInput[];
+  total_amount: number;
+  status: "pending_payment_review";
+  payment_proof_file?: string;
+  payment_proof_name?: string;
+  created_at: string;
+};
