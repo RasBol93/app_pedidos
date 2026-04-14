@@ -48,20 +48,20 @@ export function CartScreen() {
           tenantId={tenantId}
         />
       ) : (
-        <div className="screen-stack">
+        <div className="screen-stack cart-screen-stack">
           <CartSummary
             tenantId={tenantId}
             items={items}
             currency={data.tenant.currency}
-            total={cart.getSubtotal(tenantId)}
             onUpdateQuantity={(sku, quantity) => cart.updateQuantity(tenantId, sku, quantity)}
-            onRemove={(sku) => cart.removeItem(tenantId, sku)}
             showCheckoutButton={false}
+            showContinueShoppingButton
           />
           <CartCheckoutPanel
             tenantId={tenantId}
             bootstrap={data}
-            totalItems={items.length}
+            totalItems={items.reduce((sum, item) => sum + item.quantity, 0)}
+            totalAmount={cart.getSubtotal(tenantId)}
           />
         </div>
       )}

@@ -18,14 +18,18 @@ export function ProductCard({
 }: ProductCardProps) {
   return (
     <article className="product-card">
-      <div className="product-image">
-        {item.photo_url ? <img src={item.photo_url} alt={item.name} /> : <span>Sin foto</span>}
+      <div className="product-media">
+        <div className="product-image">
+          {item.photo_url ? <img src={item.photo_url} alt={item.name} /> : <span>Sin foto</span>}
+        </div>
       </div>
       <div className="product-copy">
-        <h3>{item.name}</h3>
+        <div className="product-header">
+          <h3>{item.name}</h3>
+          <strong className="product-price">{formatCurrency(item.price, currency)}</strong>
+        </div>
         {item.description ? <p className="product-description">{item.description}</p> : null}
         <div className="product-footer">
-          <strong className="product-price">{formatCurrency(item.price, currency)}</strong>
           {quantity > 0 ? (
             <div className="product-stepper" aria-label={`Cantidad de ${item.name}`}>
               <button type="button" className="product-stepper-button" onClick={() => onDecrement(item)}>

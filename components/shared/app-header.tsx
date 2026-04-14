@@ -35,6 +35,10 @@ export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHe
       </div>
       <div className="hero-overlay" />
       <div className="hero-content">
+        <div className="hero-topline">
+          <span className="hero-badge">Pickup</span>
+          {locationText ? <span className="hero-location-pill">{locationText}</span> : null}
+        </div>
         <div className="hero-brand">
           <div className="hero-logo">
             {tenant.logo_url ? <img src={tenant.logo_url} alt={`${tenant.restaurant_name} logo`} /> : null}
@@ -42,11 +46,13 @@ export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHe
           <div className="hero-brand-copy">
             <p className="eyebrow">Pickup web-app</p>
             <h1>{tenant.restaurant_name}</h1>
-            {locationText ? <p className="hero-meta">{locationText}</p> : null}
+            <p className="hero-meta">Ordena en minutos y recoge cuando quieras</p>
           </div>
         </div>
         <p className="hero-copy">{welcomeText}</p>
-        <nav className="top-links" aria-label="Navegacion principal">
+      </div>
+      <div className="hero-utility-nav">
+        <nav className="top-links hero-links" aria-label="Navegacion principal">
           <TenantLink
             href="/"
             tenantId={tenantId}

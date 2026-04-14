@@ -56,14 +56,12 @@ export function ConfirmationScreen() {
   return (
     <PageShell contentClassName="page-shell-padding">
       <AppHeader tenant={data.tenant} content={data.content} tenantId={tenantId} activePath="/" />
-      <OrderStatusCard
-        orderId={orderId}
-        order={confirmation}
-        currency={data.tenant.currency}
-      />
-      <TenantLink href="/" tenantId={tenantId} className="button button-secondary button-block">
-        Volver al menu
-      </TenantLink>
+      <div className="screen-stack confirmation-screen-stack">
+        <OrderStatusCard orderId={orderId} order={confirmation} currency={data.tenant.currency} />
+        <TenantLink href="/" tenantId={tenantId} className="button button-secondary button-block">
+          Volver al menu
+        </TenantLink>
+      </div>
     </PageShell>
   );
 }

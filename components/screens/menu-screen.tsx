@@ -106,17 +106,19 @@ export function MenuScreen() {
     <PageShell contentClassName="page-shell-padding">
       <AppHeader tenant={data.tenant} content={data.content} tenantId={tenantId} activePath="/" />
 
-      <section className={`alert ${data.open_status.can_place_order ? "alert-success" : "alert-danger"}`}>
-        <strong>{data.open_status.can_place_order ? "Pickup habilitado" : "Pedidos pausados"}</strong>
-        <span>{data.open_status.message}</span>
-      </section>
+      <div className="menu-top-stack">
+        <section className={`alert ${data.open_status.can_place_order ? "alert-success" : "alert-danger"}`}>
+          <strong>{data.open_status.can_place_order ? "Pickup habilitado" : "Pedidos pausados"}</strong>
+          <span>{data.open_status.message}</span>
+        </section>
 
-      <div className="menu-sticky-nav">
-        <CategoryChipRow
-          categories={categories}
-          activeCategory={activeCategory}
-          onSelectCategory={handleSelectCategory}
-        />
+        <div className="menu-sticky-nav">
+          <CategoryChipRow
+            categories={categories}
+            activeCategory={activeCategory}
+            onSelectCategory={handleSelectCategory}
+          />
+        </div>
       </div>
 
       <div className="menu-grid">

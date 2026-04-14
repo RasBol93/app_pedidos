@@ -19,8 +19,9 @@ export function CategoryChipRow({
 }: CategoryChipRowProps) {
   if (onSelectCategory) {
     return (
-      <div className="category-row-scroll" aria-label="Categorias">
-        <div className="category-row category-row-nowrap">
+      <div className="category-nav-shell">
+        <div className="category-row-scroll" aria-label="Categorias">
+        <div className="category-row category-row-nowrap category-chip-track">
           {showAllChip ? (
             <button
               type="button"
@@ -41,13 +42,15 @@ export function CategoryChipRow({
             </button>
           ))}
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="category-row-scroll" aria-label="Categorias">
-      <div className="category-row category-row-nowrap">
+    <div className="category-nav-shell">
+      <div className="category-row-scroll" aria-label="Categorias">
+      <div className="category-row category-row-nowrap category-chip-track">
       {showAllChip ? (
         <TenantLink
           href="/"
@@ -67,6 +70,7 @@ export function CategoryChipRow({
           {category}
         </TenantLink>
       ))}
+      </div>
       </div>
     </div>
   );

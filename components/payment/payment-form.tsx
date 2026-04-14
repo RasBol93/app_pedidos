@@ -127,64 +127,57 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
   }
 
   return (
-    <form className="checkout-layout" onSubmit={handleSubmit}>
-      <section className="form-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Pago QR</p>
-            <h2>Total a pagar</h2>
-          </div>
-          <strong>{formatCurrency(total, bootstrap.tenant.currency)}</strong>
+    <form className="payment-flow" onSubmit={handleSubmit}>
+      <section className="form-card payment-hero-card">
+        <p className="eyebrow">Pago QR</p>
+        <h2 className="payment-title">Paga este pedido</h2>
+        <p className="payment-kicker">Escanea este QR con tu app bancaria y paga el monto exacto.</p>
+        <div className="payment-total-block">
+          <span className="payment-total-label">Total a pagar</span>
+          <strong className="payment-total-amount">
+            {formatCurrency(total, bootstrap.tenant.currency)}
+          </strong>
         </div>
-
-        <div className="mini-summary">
-          <div>
-            <span>Cliente</span>
-            <strong>{draft.customer_name}</strong>
-          </div>
-          <div>
-            <span>Telefono</span>
-            <strong>{draft.customer_phone}</strong>
-          </div>
-          <div>
-            <span>Pickup</span>
-            <strong>{draft.requested_time}</strong>
-          </div>
-        </div>
+        <p className="payment-meta-line">Pickup: {draft.requested_time}</p>
       </section>
 
-      <section className="form-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Pago</p>
-            <h2>Escanea el QR</h2>
-          </div>
-        </div>
-        <p className="payment-copy">{bootstrap.payment_info.instructions}</p>
-        <div className="payment-box">
+      <section className="form-card payment-qr-card">
+        <div className="payment-qr-box">
           {bootstrap.payment_info.qr_image_url ? (
             <img src={bootstrap.payment_info.qr_image_url} alt="Codigo QR de pago" className="qr-image" />
           ) : null}
-          {bootstrap.payment_info.reference_label && bootstrap.payment_info.reference_value ? (
-            <div className="payment-reference">
-              <span>{bootstrap.payment_info.reference_label}</span>
-              <strong>{bootstrap.payment_info.reference_value}</strong>
-            </div>
-          ) : null}
         </div>
+        <div className="payment-divider" />
+        {bootstrap.payment_info.reference_label && bootstrap.payment_info.reference_value ? (
+          <div className="payment-reference payment-reference-centered">
+            <span>{bootstrap.payment_info.reference_label}</span>
+            <strong>{bootstrap.payment_info.reference_value}</strong>
+          </div>
+        ) : null}
+        <p className="payment-help-text">
+          Cuando termines el pago, sube una foto clara del comprobante para continuar.
+        </p>
+      </section>
 
-        <label className="upload-box">
-          <span>Sube tu comprobante</span>
+      <section className="form-card payment-proof-card">
+        <div className="section-heading payment-proof-heading">
+          <div>
+            <p className="eyebrow">Comprobante</p>
+            <h2>Sube tu comprobante</h2>
+          </div>
+        </div>
+        <label className="upload-box payment-upload-box">
+          <span>Selecciona una imagen desde tu celular</span>
           <input
             type="file"
             accept="image/*"
             onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
           />
-          <small>Formato esperado: imagen clara tomada desde el celular.</small>
+          <small>Debe verse claro y completo.</small>
         </label>
 
         {proofFile ? (
-          <div className="preview-card">
+          <div className="preview-card payment-preview-card">
             <div>
               <span className="preview-label">Archivo seleccionado</span>
               <strong>{proofFile.name}</strong>
@@ -195,8 +188,12 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
 
         {error ? <div className="alert alert-danger">{error}</div> : null}
 
-        <button type="submit" className="button button-primary button-block" disabled={isDisabled}>
-          {isSubmitting ? "Enviando..." : "Ya pague"}
+        <button
+          type="submit"
+          className="button button-primary button-block payment-submit-button"
+          disabled={isDisabled}
+        >
+          {isSubmitting ? "Enviando..." : "Ya pagué"}
         </button>
       </section>
     </form>
