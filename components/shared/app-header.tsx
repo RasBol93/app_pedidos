@@ -17,6 +17,7 @@ function getContentValue(content: ContentBlock[], key: ContentBlock["key"]) {
 
 export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHeaderProps) {
   const welcomeText = getContentValue(content, "welcome_text");
+  const locationText = getContentValue(content, "location_text");
 
   return (
     <header
@@ -38,9 +39,10 @@ export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHe
           <div className="hero-logo">
             {tenant.logo_url ? <img src={tenant.logo_url} alt={`${tenant.restaurant_name} logo`} /> : null}
           </div>
-          <div>
+          <div className="hero-brand-copy">
             <p className="eyebrow">Pickup web-app</p>
             <h1>{tenant.restaurant_name}</h1>
+            {locationText ? <p className="hero-meta">{locationText}</p> : null}
           </div>
         </div>
         <p className="hero-copy">{welcomeText}</p>
