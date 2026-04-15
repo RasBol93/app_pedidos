@@ -10,7 +10,6 @@ import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { AppHeader } from "@/components/shared/app-header";
 import { PageShell } from "@/components/shared/page-shell";
-import { useCartContext } from "@/context/cart-context";
 import { useBootstrap } from "@/hooks/use-bootstrap";
 import { useTenantId } from "@/hooks/use-tenant-id";
 import { slugifyCategory } from "@/lib/format";
@@ -22,7 +21,6 @@ type CategoryScreenProps = {
 
 export function CategoryScreen({ slug }: CategoryScreenProps) {
   const tenantId = useTenantId();
-  const cart = useCartContext();
   const { data, isLoading, error } = useBootstrap(tenantId);
 
   const groupedMenu = useMemo(() => (data ? groupMenuByCategory(data.menu) : {}), [data]);
@@ -67,7 +65,6 @@ export function CategoryScreen({ slug }: CategoryScreenProps) {
         title={activeCategory}
         items={groupedMenu[activeCategory]}
         currency={data.tenant.currency}
-        onAdd={(item) => cart.addItem(tenantId, item)}
       />
       <CartFloatingBar tenantId={tenantId} currency={data.tenant.currency} />
     </PageShell>
