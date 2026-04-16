@@ -44,8 +44,6 @@
 html {
   scroll-behavior: smooth;
   max-width: 100%;
-  overflow-x: hidden;
-  overflow-x: clip;
 }
 
 body {
@@ -61,8 +59,6 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   max-width: 100%;
-  overflow-x: hidden;
-  overflow-x: clip;
 }
 
 a {
@@ -89,12 +85,10 @@ img {
   padding: 20px 14px 48px;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
-  overflow-x: clip;
 }
 
 .page-phone {
-  width: 100%;
+  width: min(100%, var(--max-width));
   min-width: 0;
   max-width: var(--max-width);
 }
@@ -279,14 +273,21 @@ img {
   max-width: 100%;
 }
 
+.category-row {
+  display: inline-flex;
+}
+
 .category-row-scroll {
+  display: block;
   overflow-x: auto;
   overflow-y: hidden;
   margin: 0;
-  padding: 2px 0;
+  padding: 2px 0 6px;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
@@ -297,7 +298,7 @@ img {
 
 .category-row-nowrap {
   flex-wrap: nowrap;
-  width: max-content;
+  width: auto;
   min-width: max-content;
 }
 
@@ -308,8 +309,16 @@ img {
   min-width: 0;
 }
 
+.category-carousel-viewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .category-chip-track {
   gap: 12px;
+  padding-right: 14px;
 }
 
 .chip-link,
@@ -384,7 +393,26 @@ img {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+}
+
+.menu-top-stack {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.menu-status-card {
+  box-sizing: border-box;
+}
+
+.menu-status-copy {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .alert strong,
@@ -1476,11 +1504,7 @@ img {
   backdrop-filter: blur(12px);
   width: 100%;
   max-width: 100%;
-}
-
-.menu-top-stack {
-  display: grid;
-  gap: 8px;
+  min-width: 0;
 }
 
 .button:focus-visible,

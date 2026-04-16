@@ -107,9 +107,15 @@ export function MenuScreen() {
       <AppHeader tenant={data.tenant} content={data.content} tenantId={tenantId} activePath="/" />
 
       <div className="menu-top-stack">
-        <section className={`alert ${data.open_status.can_place_order ? "alert-success" : "alert-danger"}`}>
-          <strong>{data.open_status.can_place_order ? "Pickup habilitado" : "Pedidos pausados"}</strong>
-          <span>{data.open_status.message}</span>
+        <section
+          className={`alert menu-status-card ${
+            data.open_status.can_place_order ? "alert-success" : "alert-danger"
+          }`}
+        >
+          <div className="menu-status-copy">
+            <strong>{data.open_status.can_place_order ? "Pickup habilitado" : "Pedidos pausados"}</strong>
+            <span>{data.open_status.message}</span>
+          </div>
         </section>
 
         <div className="menu-sticky-nav">
