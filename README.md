@@ -7,7 +7,7 @@ Web-app mobile-first para pedidos pickup de restaurante, pensada para abrirse de
 - Next.js App Router
 - React + TypeScript
 - CSS global simple, sin dependencias de UI externas
-- Mocks multi-tenant y APIs internas para simular backend
+- API interna de bootstrap y menu real consumido desde backend externo configurable por env
 
 ## Como correrlo
 
@@ -28,6 +28,20 @@ npm run dev
 - `http://localhost:3000/?tenant_id=resto_demo`
 - `http://localhost:3000/?tenant_id=cafe_centro`
 
+## Variable de entorno
+
+La base URL activa del backend se define con:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://proyecto-reservas-idwl.onrender.com
+```
+
+Para cambiar a Railway en el futuro, solo cambia esa variable:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://proyecto-reservas-production.up.railway.app
+```
+
 ## Flujo V1 incluido
 
 - Carga de tenant por `tenant_id`
@@ -42,7 +56,7 @@ npm run dev
 
 ```text
 app/
-  api/webapp/...         Mock backend contracts
+  api/webapp/...         API interna que adapta el frontend
   cart/ payment/ ...     Rutas principales
 components/
   cart/ checkout/ info/ menu/ order/ shared/
@@ -53,9 +67,9 @@ hooks/
   use-bootstrap.ts
   use-tenant-id.ts
 lib/
-  format.ts menu.ts schedule.ts tenant.ts
+  backend-menu.ts format.ts menu.ts schedule.ts tenant.ts
 mock/
-  tenants.ts             Datos mock organizados por tenant
+  tenants.ts             Shell multi-tenant para metadata/UI
 services/
   webapp-api.ts          Capa cliente para conectar backend/API
 types/
@@ -70,7 +84,7 @@ Devuelve:
 
 - `tenant`
 - `content`
-- `menu`
+- `menu` real desde `${NEXT_PUBLIC_API_BASE_URL}/menu?tenant_id=...`
 - `admin_settings`
 - `payment_info`
 - `open_status`
@@ -113,15 +127,18 @@ Devuelve:
 
 ### 1. Bootstrap del tenant
 
-Archivo:
+Archivos:
 
 - [services/webapp-api.ts](/C:/Users/RENATO%20ARGOTE/Documents/New%20project/services/webapp-api.ts)
+- [app/api/webapp/bootstrap/route.ts](/C:/Users/RENATO%20ARGOTE/Documents/New%20project/app/api/webapp/bootstrap/route.ts)
+- [lib/backend-menu.ts](/C:/Users/RENATO%20ARGOTE/Documents/New%20project/lib/backend-menu.ts)
 
-Punto a reemplazar:
+Como funciona ahora:
 
 - `fetchBootstrap()`
-
-Hoy llama a la API interna mock. Cuando exista tu backend real, cambia la URL y conserva el contrato.
+- sigue llamando a la API interna `/api/webapp/bootstrap`
+- esa API interna obtiene el menu real desde `${NEXT_PUBLIC_API_BASE_URL}/menu?tenant_id=...`
+- el payload del backend se normaliza a `menu: MenuItem[]` para no romper la UI
 
 ### 2. Upload del comprobante
 
@@ -154,7 +171,11 @@ Archivos:
 - [app/api/webapp/uploads/payment-proof/route.ts](/C:/Users/RENATO%20ARGOTE/Documents/New%20project/app/api/webapp/uploads/payment-proof/route.ts)
 - [app/api/webapp/orders/create/route.ts](/C:/Users/RENATO%20ARGOTE/Documents/New%20project/app/api/webapp/orders/create/route.ts)
 
-Estos existen solo para que el frontend funcione hoy sin backend final.
+Estado actual:
+
+- `menu` ya viene del backend real
+- `tenant`, `content`, `admin_settings`, `payment_info` y `open_status` siguen viniendo del shell mock para no romper la UI actual
+- `uploads/payment-proof` y `orders/create` siguen mockeados hasta conectar esos endpoints reales
 
 ## Assumptions del backend
 

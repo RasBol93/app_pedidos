@@ -231,7 +231,7 @@ const database: Record<string, MockTenantDatabase> = {
   }
 };
 
-export async function getBootstrapByTenantId(tenantId: string) {
+export async function getBootstrapShellByTenantId(tenantId: string) {
   const record = database[tenantId];
 
   if (!record) {
@@ -242,6 +242,10 @@ export async function getBootstrapByTenantId(tenantId: string) {
     ...record,
     open_status: buildPickupStatus(record.admin_settings, new Date(), record.tenant.timezone)
   } satisfies WebappBootstrap;
+}
+
+export async function getBootstrapByTenantId(tenantId: string) {
+  return getBootstrapShellByTenantId(tenantId);
 }
 
 export function listMockTenants() {
