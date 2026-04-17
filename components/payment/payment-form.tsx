@@ -7,12 +7,7 @@ import { useCartContext } from "@/context/cart-context";
 import { useOrderFlowContext } from "@/context/order-flow-context";
 import { formatCurrency } from "@/lib/format";
 import { buildTenantHref } from "@/lib/tenant";
-import {
-  createOrder,
-  reportOrderPaid,
-  reportPaymentProof,
-  uploadPaymentProof
-} from "@/services/webapp-api";
+import { createOrder, reportPaymentProof, uploadPaymentProof } from "@/services/webapp-api";
 import type {
   CartItem,
   CreateOrderItemInput,
@@ -131,11 +126,6 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
         proof_caption: proofFile.name
       });
 
-      await reportOrderPaid({
-        tenant_id: tenantId,
-        order_id: order.order_id
-      });
-
       orderFlow.setConfirmation(tenantId, {
         order_id: order.order_id,
         tenant_id: tenantId,
@@ -160,7 +150,7 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "No pudimos dejar tu pago en revision. Intenta nuevamente."
+          : "No pudimos registrar tu comprobante. Intenta nuevamente."
       );
     } finally {
       setIsSubmitting(false);
@@ -234,7 +224,7 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
           className="button button-primary button-block payment-submit-button"
           disabled={isDisabled}
         >
-          {isSubmitting ? "Enviando..." : "Ya pagué"}
+          {isSubmitting ? "Enviando comprobante..." : "Enviar comprobante"}
         </button>
       </section>
     </form>
