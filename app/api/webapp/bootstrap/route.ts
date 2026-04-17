@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { fetchTenantMenuFromBackend } from "@/lib/backend-menu";
+import { fetchPickupStatusFromBackend } from "@/lib/backend-pickup";
 import { getBootstrapShellByTenantId } from "@/mock/tenants";
 
 export async function GET(request: Request) {
@@ -18,16 +19,28 @@ export async function GET(request: Request) {
   }
 
   try {
-    const menu = await fetchTenantMenuFromBackend(tenantId);
+    const [menu, pickup] = await Promise.all([
+      fetchTenantMenuFromBackend(tenantId),
+      fetchPickupStatusFromBackend(tenantId)
+    ]);
 
     return NextResponse.json({
       ...data,
-      menu
+      menu,
+      admin_settings: {
+        ...data.admin_settings,
+        pickup_interval_minutes:
+          pickup.pickup_interval_minutes ?? data.admin_settings.pickup_interval_minutes
+      },
+      open_status: pickup.open_status
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "No se pudo obtener el menu del backend."
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudieron obtener menu y pickup desde el backend."
       },
       { status: 502 }
     );

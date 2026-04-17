@@ -67,6 +67,13 @@ export type PaymentInfo = {
   reference_value?: string;
 };
 
+export type PickupSlotOption = {
+  value: string;
+  label: string;
+  hhmm?: string;
+  is_asap?: boolean;
+};
+
 export type PickupStatus = {
   can_place_order: boolean;
   is_open_now: boolean;
@@ -75,6 +82,7 @@ export type PickupStatus = {
   message?: string;
   today_hours_label: string;
   pickup_slots: string[];
+  pickup_slot_options?: PickupSlotOption[];
 };
 
 export type WebappBootstrap = {

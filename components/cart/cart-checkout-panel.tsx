@@ -24,14 +24,25 @@ export function CartCheckoutPanel({
   const router = useRouter();
   const orderFlow = useOrderFlowContext();
   const draft = orderFlow.getDraft(tenantId);
+  const pickupOptions =
+    bootstrap.open_status.pickup_slot_options?.length
+      ? bootstrap.open_status.pickup_slot_options
+      : bootstrap.open_status.pickup_slots.map((slot) => ({
+          value: slot,
+          label: slot
+        }));
+  const selectedPickupLabel =
+    pickupOptions.find((slot) => slot.value === draft.requested_time)?.label ||
+    draft.requested_time ||
+    "Selecciona una hora";
 
   useEffect(() => {
-    if (!draft.requested_time && bootstrap.open_status.pickup_slots[0]) {
+    if (!draft.requested_time && pickupOptions[0]?.value) {
       orderFlow.saveDraft(tenantId, {
-        requested_time: bootstrap.open_status.pickup_slots[0]
+        requested_time: pickupOptions[0].value
       });
     }
-  }, [bootstrap.open_status.pickup_slots, draft.requested_time, orderFlow, tenantId]);
+  }, [draft.requested_time, orderFlow, pickupOptions, tenantId]);
 
   const canContinue = useMemo(() => {
     return Boolean(
@@ -100,18 +111,18 @@ export function CartCheckoutPanel({
         </div>
         <div className="pickup-panel-heading">
           <span>Hora elegida</span>
-          <strong>{draft.requested_time || "Selecciona una hora"}</strong>
+          <strong>{selectedPickupLabel}</strong>
         </div>
         <div className="pickup-slot-grid">
-          {bootstrap.open_status.pickup_slots.map((slot) => (
+          {pickupOptions.map((slot) => (
             <button
-              key={slot}
+              key={slot.value}
               type="button"
-              className={`pickup-slot ${draft.requested_time === slot ? "pickup-slot-active" : ""}`}
-              onClick={() => orderFlow.saveDraft(tenantId, { requested_time: slot })}
+              className={`pickup-slot ${draft.requested_time === slot.value ? "pickup-slot-active" : ""}`}
+              onClick={() => orderFlow.saveDraft(tenantId, { requested_time: slot.value })}
               disabled={!bootstrap.open_status.can_place_order}
             >
-              {slot}
+              {slot.label}
             </button>
           ))}
         </div>
