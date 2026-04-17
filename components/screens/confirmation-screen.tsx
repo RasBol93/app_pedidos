@@ -57,7 +57,12 @@ export function ConfirmationScreen() {
     <PageShell contentClassName="page-shell-padding">
       <AppHeader tenant={data.tenant} content={data.content} tenantId={tenantId} activePath="/" />
       <div className="screen-stack confirmation-screen-stack">
-        <OrderStatusCard orderId={orderId} order={confirmation} currency={data.tenant.currency} />
+        <OrderStatusCard
+          tenantId={tenantId}
+          orderId={orderId}
+          order={confirmation}
+          currency={data.tenant.currency}
+        />
         <TenantLink href="/" tenantId={tenantId} className="button button-secondary button-block">
           Volver al menu
         </TenantLink>

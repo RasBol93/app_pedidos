@@ -138,6 +138,27 @@ export type UploadPaymentProofResponse = {
   original_name: string;
 };
 
+export type ReportPaymentProofPayload = {
+  tenant_id: string;
+  order_id: string;
+  proof_type: "external_url";
+  proof_reference: string;
+  proof_caption?: string;
+};
+
+export type ReportPaidPayload = {
+  tenant_id: string;
+  order_id: string;
+};
+
+export type BackendActionResponse = {
+  ok?: boolean;
+  success?: boolean;
+  message?: string;
+  detail?: string;
+  [key: string]: unknown;
+};
+
 export type CheckoutDraft = {
   customer_name: string;
   customer_phone: string;
