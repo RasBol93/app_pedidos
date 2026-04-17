@@ -7,8 +7,19 @@ import { useCartContext } from "@/context/cart-context";
 import { useOrderFlowContext } from "@/context/order-flow-context";
 import { formatCurrency } from "@/lib/format";
 import { buildTenantHref } from "@/lib/tenant";
-import { createOrder, uploadPaymentProof } from "@/services/webapp-api";
-import type { CartItem, WebappBootstrap } from "@/types/webapp";
+import {
+  createOrder,
+  reportOrderPaid,
+  reportPaymentProof,
+  uploadPaymentProof
+} from "@/services/webapp-api";
+import type {
+  CartItem,
+  CreateOrderItemInput,
+  CreateOrderResponse,
+  UploadPaymentProofResponse,
+  WebappBootstrap
+} from "@/types/webapp";
 
 type PaymentFormProps = {
   tenantId: string;
@@ -27,10 +38,14 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
   const [previewUrl, setPreviewUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedProof, setUploadedProof] = useState<UploadPaymentProofResponse | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<CreateOrderResponse | null>(null);
 
   useEffect(() => {
     if (!proofFile) {
       setPreviewUrl("");
+      setUploadedProof(null);
+      setCreatedOrder(null);
       return;
     }
 
@@ -74,27 +89,51 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
       setError(null);
       setIsSubmitting(true);
 
-      const upload = await uploadPaymentProof(proofFile);
       const orderItems = items.map((item) => ({
         sku: item.sku,
         name: item.name,
         price: item.price,
         quantity: item.quantity
-      }));
+      })) satisfies CreateOrderItemInput[];
 
-      const order = await createOrder({
+      let upload = uploadedProof;
+
+      if (!upload) {
+        upload = await uploadPaymentProof(proofFile);
+        setUploadedProof(upload);
+      }
+
+      let order = createdOrder;
+
+      if (!order) {
+        order = await createOrder({
+          tenant_id: tenantId,
+          customer_name: draft.customer_name.trim(),
+          customer_phone: draft.customer_phone.trim(),
+          requested_time: draft.requested_time,
+          items: orderItems,
+          items_snapshot: orderItems,
+          total_amount: total,
+          notes: draft.notes.trim(),
+          payment_proof_file: upload.file_reference,
+          source: "webapp",
+          delivery_type: "pickup",
+          status: "pending_payment_review"
+        });
+        setCreatedOrder(order);
+      }
+
+      await reportPaymentProof({
         tenant_id: tenantId,
-        customer_name: draft.customer_name.trim(),
-        customer_phone: draft.customer_phone.trim(),
-        requested_time: draft.requested_time,
-        items: orderItems,
-        items_snapshot: orderItems,
-        total_amount: total,
-        notes: draft.notes.trim(),
-        payment_proof_file: upload.file_reference,
-        source: "webapp",
-        delivery_type: "pickup",
-        status: "pending_payment_review"
+        order_id: order.order_id,
+        proof_type: "external_url",
+        proof_reference: upload.file_reference,
+        proof_caption: proofFile.name
+      });
+
+      await reportOrderPaid({
+        tenant_id: tenantId,
+        order_id: order.order_id
       });
 
       orderFlow.setConfirmation(tenantId, {
@@ -112,6 +151,8 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
         created_at: new Date().toISOString()
       });
 
+      setUploadedProof(null);
+      setCreatedOrder(null);
       orderFlow.clearDraft(tenantId);
       cart.clearCart(tenantId);
       router.push(buildTenantHref("/confirmation", tenantId, { order_id: order.order_id }));
@@ -119,7 +160,7 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "No pudimos registrar tu pedido. Intenta nuevamente."
+          : "No pudimos dejar tu pago en revision. Intenta nuevamente."
       );
     } finally {
       setIsSubmitting(false);
