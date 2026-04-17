@@ -12,11 +12,27 @@ function getOrdersCreateUrl() {
 
 export async function POST(request: Request) {
   try {
-    const payload = await request.json();
-    const { customer_phone, ...rest } = payload as Record<string, unknown>;
+    const payload = (await request.json()) as {
+      customer_phone?: string;
+      items?: Array<{
+        sku?: string;
+        quantity?: number;
+      }>;
+      items_snapshot?: unknown;
+      [key: string]: unknown;
+    };
+
+    const { customer_phone, items, items_snapshot: _itemsSnapshot, ...rest } = payload;
+
     const backendPayload = {
       ...rest,
-      customer_contact: customer_phone
+      customer_contact: customer_phone,
+      items: Array.isArray(items)
+        ? items.map((item) => ({
+            sku: item?.sku,
+            qty: item?.quantity
+          }))
+        : []
     };
 
     console.log("Creating order → forwarding to backend");
