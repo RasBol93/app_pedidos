@@ -13,6 +13,11 @@ function getOrdersCreateUrl() {
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
+    const { customer_phone, ...rest } = payload as Record<string, unknown>;
+    const backendPayload = {
+      ...rest,
+      customer_contact: customer_phone
+    };
 
     console.log("Creating order → forwarding to backend");
 
@@ -21,7 +26,7 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(backendPayload),
       cache: "no-store"
     });
 
