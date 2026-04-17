@@ -1,28 +1,39 @@
 import { NextResponse } from "next/server";
 
-import type { CreateOrderPayload } from "@/types/webapp";
+function getOrdersCreateUrl() {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL no esta configurada.");
+  }
+
+  return `${baseUrl.replace(/\/+$/, "")}/orders/create`;
+}
 
 export async function POST(request: Request) {
-  const payload = (await request.json()) as Partial<CreateOrderPayload>;
+  try {
+    const payload = await request.json();
 
-  if (!payload.tenant_id || !payload.customer_name || !payload.customer_phone) {
-    return NextResponse.json(
-      { error: "tenant_id, customer_name y customer_phone son requeridos." },
-      { status: 400 }
-    );
+    console.log("Creating order → forwarding to backend");
+
+    const response = await fetch(getOrdersCreateUrl(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+
+    const data = await response.json();
+
+    console.log("Backend response:", data);
+
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "No se pudo conectar con el backend de pedidos.";
+
+    return NextResponse.json({ error: message }, { status: 502 });
   }
-
-  if (!payload.requested_time || !Array.isArray(payload.items) || payload.items.length === 0) {
-    return NextResponse.json(
-      { error: "requested_time e items son requeridos para crear el pedido." },
-      { status: 400 }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    order_id: `ORD-${Date.now()}`,
-    status: "pending_payment_review",
-    message: "Tu pedido fue enviado y quedo pendiente de validacion."
-  });
 }
