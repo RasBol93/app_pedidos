@@ -54,9 +54,6 @@ export async function uploadPaymentProof(file: File) {
   const presignedUpload = await parseJson<PresignedPaymentProofUploadResponse>(presignResponse);
   const uploadResponse = await fetch(presignedUpload.upload_url, {
     method: "PUT",
-    headers: {
-      "Content-Type": contentType
-    },
     body: file
   });
 
