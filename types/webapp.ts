@@ -132,13 +132,6 @@ export type CreateOrderResponse = {
   message: string;
 };
 
-export type PresignedPaymentProofUploadResponse = {
-  success: boolean;
-  upload_url: string;
-  file_url: string;
-  object_key: string;
-};
-
 export type UploadPaymentProofResponse = {
   success: boolean;
   file_reference: string;

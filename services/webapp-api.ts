@@ -4,7 +4,6 @@ import type {
   CreateOrderResponse,
   ReportPaidPayload,
   ReportPaymentProofPayload,
-  PresignedPaymentProofUploadResponse,
   UploadPaymentProofResponse,
   WebappBootstrap
 } from "@/types/webapp";
@@ -39,34 +38,15 @@ export async function fetchBootstrap(tenantId: string) {
 }
 
 export async function uploadPaymentProof(file: File) {
-  const contentType = file.type || "application/octet-stream";
-  const presignResponse = await fetch(`${getPublicApiBaseUrl()}/upload/payment-proof/presign`, {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/webapp/uploads/payment-proof", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      filename: file.name,
-      content_type: contentType
-    })
+    body: formData
   });
 
-  const presignedUpload = await parseJson<PresignedPaymentProofUploadResponse>(presignResponse);
-  const uploadResponse = await fetch(presignedUpload.upload_url, {
-    method: "PUT",
-    body: file
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error("No pudimos subir el comprobante. Intenta nuevamente.");
-  }
-
-  return {
-    success: presignedUpload.success,
-    file_reference: presignedUpload.file_url,
-    original_name: file.name,
-    object_key: presignedUpload.object_key
-  } satisfies UploadPaymentProofResponse;
+  return parseJson<UploadPaymentProofResponse>(response);
 }
 
 export async function createOrder(payload: CreateOrderPayload) {
