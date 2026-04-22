@@ -23,6 +23,91 @@ type PaymentFormProps = {
   total: number;
 };
 
+const OPTIMIZABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const MAX_IMAGE_SIDE = 1600;
+const JPEG_QUALITY = 0.8;
+
+function isOptimizableImage(file: File) {
+  return OPTIMIZABLE_IMAGE_TYPES.has(file.type.toLowerCase());
+}
+
+function buildOptimizedFileName(originalName: string) {
+  const dotIndex = originalName.lastIndexOf(".");
+  const baseName = dotIndex > 0 ? originalName.slice(0, dotIndex) : originalName;
+  return `${baseName || "payment-proof"}.jpg`;
+}
+
+function loadImageFromFile(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("No pudimos leer la imagen seleccionada."));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
+  });
+}
+
+async function optimizePaymentProofFile(file: File) {
+  if (!isOptimizableImage(file)) {
+    return file;
+  }
+
+  try {
+    const image = await loadImageFromFile(file);
+    const longestSide = Math.max(image.width, image.height);
+
+    if (longestSide <= MAX_IMAGE_SIDE) {
+      return file;
+    }
+
+    const scale = MAX_IMAGE_SIDE / longestSide;
+    const targetWidth = Math.max(1, Math.round(image.width * scale));
+    const targetHeight = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return file;
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, targetWidth, targetHeight);
+    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const optimizedBlob = await canvasToBlob(canvas, JPEG_QUALITY);
+
+    if (!optimizedBlob || optimizedBlob.size === 0 || optimizedBlob.size >= file.size) {
+      return file;
+    }
+
+    return new File([optimizedBlob], buildOptimizedFileName(file.name), {
+      type: "image/jpeg",
+      lastModified: file.lastModified
+    });
+  } catch {
+    return file;
+  }
+}
+
 export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormProps) {
   const router = useRouter();
   const cart = useCartContext();
@@ -94,7 +179,8 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
       let upload = uploadedProof;
 
       if (!upload) {
-        upload = await uploadPaymentProof(proofFile);
+        const fileForUpload = await optimizePaymentProofFile(proofFile);
+        upload = await uploadPaymentProof(fileForUpload);
         setUploadedProof(upload);
       }
 
@@ -201,7 +287,7 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
           <span>Selecciona una imagen desde tu celular</span>
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf,.pdf"
             onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
           />
           <small>Debe verse claro y completo.</small>
@@ -213,7 +299,9 @@ export function PaymentForm({ tenantId, bootstrap, items, total }: PaymentFormPr
               <span className="preview-label">Archivo seleccionado</span>
               <strong>{proofFile.name}</strong>
             </div>
-            {previewUrl ? <img src={previewUrl} alt="Preview del comprobante" className="preview-image" /> : null}
+            {previewUrl && proofFile.type.startsWith("image/") ? (
+              <img src={previewUrl} alt="Preview del comprobante" className="preview-image" />
+            ) : null}
           </div>
         ) : null}
 
