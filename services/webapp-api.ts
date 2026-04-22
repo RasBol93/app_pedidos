@@ -41,12 +41,23 @@ export async function uploadPaymentProof(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch("/api/webapp/uploads/payment-proof", {
+  const response = await fetch(`${getPublicApiBaseUrl()}/upload/payment-proof`, {
     method: "POST",
     body: formData
   });
 
-  return parseJson<UploadPaymentProofResponse>(response);
+  const payload = await parseJson<{
+    success: boolean;
+    url: string;
+    object_key?: string;
+  }>(response);
+
+  return {
+    success: payload.success,
+    file_reference: payload.url,
+    original_name: file.name,
+    object_key: payload.object_key
+  } satisfies UploadPaymentProofResponse;
 }
 
 export async function createOrder(payload: CreateOrderPayload) {
