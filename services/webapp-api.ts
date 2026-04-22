@@ -29,6 +29,44 @@ function getPublicApiBaseUrl() {
   return baseUrl.replace(/\/+$/, "");
 }
 
+type PaymentProofPresignResponse = {
+  success: boolean;
+  upload_url: string;
+  file_url: string;
+  object_key?: string;
+};
+
+function inferContentType(file: File) {
+  return file.type?.trim() || "application/octet-stream";
+}
+
+async function presignPaymentProofUpload(file: File): Promise<PaymentProofPresignResponse> {
+  const response = await fetch(`${getPublicApiBaseUrl()}/upload/payment-proof/presign`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      filename: file.name,
+      content_type: inferContentType(file)
+    })
+  });
+
+  return parseJson<PaymentProofPresignResponse>(response);
+}
+
+async function uploadFileDirectToR2(uploadUrl: string, file: File) {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    body: file
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "No se pudo subir el comprobante al storage.");
+  }
+}
+
 export async function fetchBootstrap(tenantId: string) {
   const response = await fetch(`/api/webapp/bootstrap?tenant_id=${encodeURIComponent(tenantId)}`, {
     cache: "no-store"
@@ -38,25 +76,19 @@ export async function fetchBootstrap(tenantId: string) {
 }
 
 export async function uploadPaymentProof(file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
+  const presigned = await presignPaymentProofUpload(file);
 
-  const response = await fetch(`${getPublicApiBaseUrl()}/upload/payment-proof`, {
-    method: "POST",
-    body: formData
-  });
+  if (!presigned.success || !presigned.upload_url || !presigned.file_url) {
+    throw new Error("No se pudo preparar la subida del comprobante.");
+  }
 
-  const payload = await parseJson<{
-    success: boolean;
-    url: string;
-    object_key?: string;
-  }>(response);
+  await uploadFileDirectToR2(presigned.upload_url, file);
 
   return {
-    success: payload.success,
-    file_reference: payload.url,
+    success: true,
+    file_reference: presigned.file_url,
     original_name: file.name,
-    object_key: payload.object_key
+    object_key: presigned.object_key
   } satisfies UploadPaymentProofResponse;
 }
 
