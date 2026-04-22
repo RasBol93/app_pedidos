@@ -1,25 +1,30 @@
 import { formatCurrency } from "@/lib/format";
-import type { SubmittedOrderRecap } from "@/types/webapp";
+import type { OrderUiStatus, SubmittedOrderRecap } from "@/types/webapp";
 
 type OrderStatusCardProps = {
   orderId?: string;
   order?: SubmittedOrderRecap | null;
   currency: string;
+  uiStatus?: OrderUiStatus;
 };
 
-export function OrderStatusCard({ orderId, order, currency }: OrderStatusCardProps) {
+export function OrderStatusCard({ orderId, order, currency, uiStatus }: OrderStatusCardProps) {
   const resolvedOrderId = order?.order_id ?? orderId;
+  const resolvedUiStatus = uiStatus ?? order?.status ?? "pending_payment_review";
+  const isPaid = resolvedUiStatus === "paid";
+  const badgeLabel = isPaid ? "Pago confirmado" : "Pedido enviado";
+  const title = isPaid ? "Tu pago fue confirmado" : "Tu comprobante esta en revision";
+  const description = isPaid
+    ? "Ya confirmamos tu pago. Tu pedido quedo registrado correctamente y seguira su proceso normal."
+    : "Tu pedido fue enviado y tu comprobante esta en revision. Te confirmaremos pronto desde el canal habitual del restaurante.";
 
   return (
     <section className="status-card">
       <div className="status-hero">
-        <span className="badge badge-success">Pedido enviado</span>
+        <span className="badge badge-success">{badgeLabel}</span>
         <div className="status-hero-copy">
-          <h2>Tu comprobante esta en revision</h2>
-          <p>
-            Tu pedido fue enviado y tu comprobante esta en revision. Te confirmaremos pronto desde el
-            canal habitual del restaurante.
-          </p>
+          <h2>{title}</h2>
+          <p>{description}</p>
         </div>
       </div>
 

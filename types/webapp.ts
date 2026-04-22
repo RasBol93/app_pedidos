@@ -132,6 +132,8 @@ export type CreateOrderResponse = {
   message: string;
 };
 
+export type OrderUiStatus = "pending_payment" | "pending_payment_review" | "paid";
+
 export type UploadPaymentProofResponse = {
   success: boolean;
   file_reference: string;
@@ -176,8 +178,19 @@ export type SubmittedOrderRecap = {
   notes?: string;
   items: CreateOrderItemInput[];
   total_amount: number;
-  status: "pending_payment_review";
+  status: OrderUiStatus;
   payment_proof_file?: string;
   payment_proof_name?: string;
   created_at: string;
+};
+
+export type OrderStatusOrderSnapshot = Partial<SubmittedOrderRecap> & {
+  order_id: string;
+  tenant_id: string;
+};
+
+export type OrderStatusResponse = {
+  ui_status: OrderUiStatus;
+  status?: string;
+  order: OrderStatusOrderSnapshot | null;
 };
