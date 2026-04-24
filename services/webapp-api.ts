@@ -12,12 +12,25 @@ import type {
   WebappBootstrap
 } from "@/types/webapp";
 
+export class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as
       | { error?: string; message?: string; detail?: string }
       | null;
-    throw new Error(payload?.error || payload?.message || payload?.detail || "No se pudo completar la solicitud.");
+    throw new ApiRequestError(
+      payload?.error || payload?.message || payload?.detail || "No se pudo completar la solicitud.",
+      response.status
+    );
   }
 
   return response.json() as Promise<T>;
@@ -183,11 +196,12 @@ export async function fetchBootstrap(tenantId: string) {
   return parseJson<WebappBootstrap>(response);
 }
 
-export async function fetchOrderStatus(tenantId: string, orderId: string) {
+export async function fetchOrderStatus(tenantId: string, orderId: string, signal?: AbortSignal) {
   const response = await fetch(
     `${getPublicApiBaseUrl()}/orders/status?tenant_id=${encodeURIComponent(tenantId)}&order_id=${encodeURIComponent(orderId)}`,
     {
-      cache: "no-store"
+      cache: "no-store",
+      signal
     }
   );
 

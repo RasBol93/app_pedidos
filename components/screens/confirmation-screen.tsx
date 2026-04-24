@@ -13,7 +13,7 @@ import { TenantLink } from "@/components/shared/tenant-link";
 import { useOrderFlowContext } from "@/context/order-flow-context";
 import { useBootstrap } from "@/hooks/use-bootstrap";
 import { useTenantId } from "@/hooks/use-tenant-id";
-import { fetchOrderStatus } from "@/services/webapp-api";
+import { ApiRequestError, fetchOrderStatus } from "@/services/webapp-api";
 import type {
   OrderStatusOrderSnapshot,
   OrderUiStatus,
@@ -62,15 +62,26 @@ export function ConfirmationScreen() {
   const orderId = searchParams.get("order_id") ?? undefined;
   const orderFlow = useOrderFlowContext();
   const { data, isLoading, error } = useBootstrap(tenantId);
-  const confirmation = orderFlow.getConfirmation(tenantId);
+  const storedConfirmation = orderFlow.getConfirmation(tenantId);
+  const confirmation =
+    storedConfirmation && (!orderId || storedConfirmation.order_id === orderId)
+      ? storedConfirmation
+      : null;
   const [remoteUiStatus, setRemoteUiStatus] = useState<OrderUiStatus | null>(null);
   const [remoteOrder, setRemoteOrder] = useState<OrderStatusOrderSnapshot | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const stopPollingRef = useRef(false);
   const confirmationRef = useRef<SubmittedOrderRecap | null>(confirmation);
+  const setConfirmationRef = useRef(orderFlow.setConfirmation);
 
   useEffect(() => {
     confirmationRef.current = confirmation;
   }, [confirmation]);
+
+  useEffect(() => {
+    setConfirmationRef.current = orderFlow.setConfirmation;
+  }, [orderFlow.setConfirmation]);
 
   const resolvedUiStatus = remoteUiStatus ?? confirmation?.status ?? "pending_payment_review";
   const displayOrder = useMemo(
@@ -84,6 +95,7 @@ export function ConfirmationScreen() {
     }
 
     let isActive = true;
+    stopPollingRef.current = confirmationRef.current?.status === "paid";
 
     const clearScheduledPoll = () => {
       if (timeoutRef.current !== null) {
@@ -92,11 +104,46 @@ export function ConfirmationScreen() {
       }
     };
 
-    const pollOrderStatus = async () => {
-      try {
-        const nextStatus = await fetchOrderStatus(tenantId, orderId);
+    const abortInFlightRequest = () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
 
-        if (!isActive) {
+    const stopPolling = () => {
+      stopPollingRef.current = true;
+      clearScheduledPoll();
+      abortInFlightRequest();
+    };
+
+    const shouldRetryAfterError = (error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return false;
+      }
+
+      if (error instanceof ApiRequestError) {
+        if ((error.status >= 400 && error.status < 500 && error.status !== 429) || error.status === 500) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    const pollOrderStatus = async () => {
+      if (!isActive || stopPollingRef.current) {
+        return;
+      }
+
+      abortInFlightRequest();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      try {
+        const nextStatus = await fetchOrderStatus(tenantId, orderId, controller.signal);
+
+        if (!isActive || stopPollingRef.current) {
           return;
         }
 
@@ -112,17 +159,26 @@ export function ConfirmationScreen() {
         );
 
         if (mergedNextOrder && nextStatus.ui_status === "paid") {
-          orderFlow.setConfirmation(tenantId, mergedNextOrder);
-          clearScheduledPoll();
+          setConfirmationRef.current(tenantId, mergedNextOrder);
+          stopPolling();
           return;
         }
-      } catch {
-        if (!isActive) {
+      } catch (error) {
+        if (!isActive || stopPollingRef.current) {
           return;
+        }
+
+        if (!shouldRetryAfterError(error)) {
+          stopPolling();
+          return;
+        }
+      } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
         }
       }
 
-      if (!isActive) {
+      if (!isActive || stopPollingRef.current) {
         return;
       }
 
@@ -133,9 +189,9 @@ export function ConfirmationScreen() {
 
     return () => {
       isActive = false;
-      clearScheduledPoll();
+      stopPolling();
     };
-  }, [orderFlow, orderId, tenantId]);
+  }, [orderId, tenantId]);
 
   if (isLoading || !orderFlow.isHydrated) {
     return (
