@@ -1,8 +1,23 @@
 import { NextResponse } from "next/server";
 
-import { fetchTenantMenuFromBackend } from "@/lib/backend-menu";
-import { fetchPickupStatusFromBackend } from "@/lib/backend-pickup";
-import { getBootstrapShellByTenantId } from "@/mock/tenants";
+type BackendBootstrapPayload = {
+  ok?: boolean;
+  tenant_id?: string;
+  bootstrap?: unknown;
+  error?: string;
+  detail?: string;
+  message?: string;
+};
+
+function getBackendApiBaseUrl() {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL no esta configurada.");
+  }
+
+  return baseUrl.replace(/\/+$/, "");
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,35 +27,60 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "tenant_id es requerido." }, { status: 400 });
   }
 
-  const data = await getBootstrapShellByTenantId(tenantId);
-
-  if (!data) {
-    return NextResponse.json({ error: "Tenant no encontrado." }, { status: 404 });
-  }
-
   try {
-    const [menu, pickup] = await Promise.all([
-      fetchTenantMenuFromBackend(tenantId),
-      fetchPickupStatusFromBackend(tenantId)
-    ]);
+    const response = await fetch(
+      `${getBackendApiBaseUrl()}/webapp/bootstrap?tenant_id=${encodeURIComponent(tenantId)}`,
+      {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json"
+        }
+      }
+    );
 
-    return NextResponse.json({
-      ...data,
-      menu,
-      admin_settings: {
-        ...data.admin_settings,
-        pickup_interval_minutes:
-          pickup.pickup_interval_minutes ?? data.admin_settings.pickup_interval_minutes
-      },
-      open_status: pickup.open_status
-    });
+    const payload = (await response.json().catch(() => null)) as BackendBootstrapPayload | null;
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          error:
+            payload?.error ||
+            payload?.detail ||
+            payload?.message ||
+            `No se pudo obtener bootstrap para ${tenantId}.`
+        },
+        { status: 502 }
+      );
+    }
+
+    if (!payload?.ok) {
+      return NextResponse.json(
+        {
+          error:
+            payload?.error ||
+            payload?.detail ||
+            payload?.message ||
+            "El backend devolvio ok=false para webapp/bootstrap."
+        },
+        { status: 502 }
+      );
+    }
+
+    if (!payload.bootstrap || typeof payload.bootstrap !== "object") {
+      return NextResponse.json(
+        { error: "El backend devolvio un bootstrap invalido o vacio." },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json(payload.bootstrap);
   } catch (error) {
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "No se pudieron obtener menu y pickup desde el backend."
+            : "No se pudo conectar con el backend de bootstrap."
       },
       { status: 502 }
     );
