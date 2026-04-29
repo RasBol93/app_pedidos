@@ -128,21 +128,6 @@ export function CartCheckoutPanel({
         </div>
       </div>
 
-      <div className="cart-section-block">
-        <div className="cart-block-heading">
-          <p className="eyebrow">Notas</p>
-          <h3>Algo para tener en cuenta</h3>
-        </div>
-        <label className="field">
-          <span>Notas (opcional)</span>
-          <textarea
-            rows={3}
-            value={draft.notes}
-            onChange={(event) => orderFlow.saveDraft(tenantId, { notes: event.target.value })}
-          />
-        </label>
-      </div>
-
       <div className="cart-totals-card">
         <div className="cart-total-row">
           <span>Items</span>
