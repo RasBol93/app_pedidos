@@ -17,11 +17,11 @@ function getContentValue(content: ContentBlock[], key: ContentBlock["key"]) {
 
 export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHeaderProps) {
   const welcomeText = getContentValue(content, "welcome_text");
-  const locationText = getContentValue(content, "location_text");
+  const hasCoverImage = Boolean(tenant.cover_image_url);
 
   return (
     <header
-      className="hero-card"
+      className={`hero-card ${hasCoverImage ? "hero-card-with-cover" : "hero-card-compact"}`}
       style={
         {
           "--brand-primary": "#2563EB",
@@ -30,15 +30,15 @@ export function AppHeader({ tenant, content, tenantId, activePath = "/" }: AppHe
         } as CSSProperties
       }
     >
-      <div className="hero-media">
-        {tenant.cover_image_url ? <img src={tenant.cover_image_url} alt={tenant.restaurant_name} /> : null}
-      </div>
-      <div className="hero-overlay" />
-      <div className="hero-content">
-        <div className="hero-topline">
-          <span className="hero-badge">Pickup</span>
-          {locationText ? <span className="hero-location-pill">{locationText}</span> : null}
-        </div>
+      {hasCoverImage ? (
+        <>
+          <div className="hero-media">
+            <img src={tenant.cover_image_url} alt={tenant.restaurant_name} />
+          </div>
+          <div className="hero-overlay" />
+        </>
+      ) : null}
+      <div className={`hero-content ${hasCoverImage ? "" : "hero-content-compact"}`}>
         <div className="hero-brand">
           <div className="hero-logo">
             {tenant.logo_url ? <img src={tenant.logo_url} alt={`${tenant.restaurant_name} logo`} /> : null}

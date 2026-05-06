@@ -113,8 +113,8 @@ export function MenuScreen() {
           }`}
         >
           <div className="menu-status-copy">
-            <strong>{data.open_status.can_place_order ? "Pickup habilitado" : "Pedidos pausados"}</strong>
-            <span>{data.open_status.message}</span>
+            <strong>{data.open_status.can_place_order ? "Comercio abierto" : "Pedidos pausados"}</strong>
+            {!data.open_status.can_place_order ? <span>{data.open_status.message}</span> : null}
           </div>
         </section>
 
