@@ -14,8 +14,59 @@ type ContentScreenProps = {
   kind: ContentKind;
 };
 
+const WEEKDAY_LABELS: Record<string, string> = {
+  monday: "Lunes",
+  tuesday: "Martes",
+  wednesday: "Miercoles",
+  thursday: "Jueves",
+  friday: "Viernes",
+  saturday: "Sabado",
+  sunday: "Domingo"
+};
+
 function getContentValue(content: { key: string; value: string; active: boolean }[], key: string) {
   return content.find((entry) => entry.key === key && entry.active)?.value ?? "";
+}
+
+function normalizeOpenDays(value: string[] | string) {
+  if (Array.isArray(value)) {
+    return value.map((day) => day.toLowerCase());
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((day) => day.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function buildWeeklySchedule(settings: {
+  weekly_open_days: string[] | string;
+  weekly_slot_mode: "single" | "split";
+  weekly_slot1_open?: string;
+  weekly_slot1_close?: string;
+  weekly_slot2_open?: string;
+  weekly_slot2_close?: string;
+}) {
+  const openDays = new Set(normalizeOpenDays(settings.weekly_open_days));
+  const slotOne =
+    settings.weekly_slot1_open && settings.weekly_slot1_close
+      ? `${settings.weekly_slot1_open} - ${settings.weekly_slot1_close}`
+      : "";
+  const slotTwo =
+    settings.weekly_slot_mode === "split" && settings.weekly_slot2_open && settings.weekly_slot2_close
+      ? `${settings.weekly_slot2_open} - ${settings.weekly_slot2_close}`
+      : "";
+  const openHours = [slotOne, slotTwo].filter(Boolean).join(" / ") || "Horario no disponible";
+
+  return Object.entries(WEEKDAY_LABELS).map(([dayKey, label]) => ({
+    day: label,
+    hours: openDays.has(dayKey) ? openHours : "Cerrado",
+    isClosed: !openDays.has(dayKey)
+  }));
 }
 
 export function ContentScreen({ kind }: ContentScreenProps) {
@@ -41,13 +92,14 @@ export function ContentScreen({ kind }: ContentScreenProps) {
   const locationText = getContentValue(data.content, "location_text");
   const locationLink = getContentValue(data.content, "location_link");
   const faqText = getContentValue(data.content, "faq_text");
+  const weeklySchedule = buildWeeklySchedule(data.admin_settings);
 
   const contentByKind = {
     location: {
       eyebrow: "Ubicacion",
       title: "Recoge tu pedido aqui",
       body: locationText,
-      ctaLabel: "Abrir mapa",
+      ctaLabel: undefined,
       ctaHref: locationLink
     },
     faq: {
@@ -60,13 +112,25 @@ export function ContentScreen({ kind }: ContentScreenProps) {
     hours: {
       eyebrow: "Horarios",
       title: "Disponibilidad de pickup",
-      body: `Horario de hoy: ${data.open_status.today_hours_label}\n\n${data.open_status.message}\n\nTiempo de preparacion: ${data.admin_settings.prep_time_min} min.\nSlots: cada ${data.admin_settings.pickup_interval_minutes} min.`,
+      body: "",
       ctaLabel: undefined,
-      ctaHref: undefined
+      ctaHref: undefined,
+      hoursTodayLabel: data.open_status.today_hours_label,
+      hoursTodayMessage: data.open_status.message,
+      weeklySchedule
     }
   } satisfies Record<
     ContentKind,
-    { eyebrow: string; title: string; body: string; ctaLabel?: string; ctaHref?: string }
+    {
+      eyebrow: string;
+      title: string;
+      body: string;
+      ctaLabel?: string;
+      ctaHref?: string;
+      hoursTodayLabel?: string;
+      hoursTodayMessage?: string;
+      weeklySchedule?: Array<{ day: string; hours: string; isClosed: boolean }>;
+    }
   >;
 
   const current = contentByKind[kind];
@@ -85,6 +149,9 @@ export function ContentScreen({ kind }: ContentScreenProps) {
         body={current.body}
         ctaLabel={current.ctaLabel}
         ctaHref={current.ctaHref}
+        hoursTodayLabel={current.hoursTodayLabel}
+        hoursTodayMessage={current.hoursTodayMessage}
+        weeklySchedule={current.weeklySchedule}
       />
     </PageShell>
   );
