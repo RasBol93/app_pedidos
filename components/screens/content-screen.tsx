@@ -14,6 +14,23 @@ type ContentScreenProps = {
   kind: ContentKind;
 };
 
+type WeeklyScheduleItem = {
+  day: string;
+  hours: string;
+  isClosed: boolean;
+};
+
+type ContentPanelConfig = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  hoursTodayLabel?: string;
+  hoursTodayMessage?: string;
+  weeklySchedule?: WeeklyScheduleItem[];
+};
+
 const WEEKDAY_LABELS: Record<string, string> = {
   monday: "Lunes",
   tuesday: "Martes",
@@ -50,7 +67,7 @@ function buildWeeklySchedule(settings: {
   weekly_slot1_close?: string;
   weekly_slot2_open?: string;
   weekly_slot2_close?: string;
-}) {
+}): WeeklyScheduleItem[] {
   const openDays = new Set(normalizeOpenDays(settings.weekly_open_days));
   const slotOne =
     settings.weekly_slot1_open && settings.weekly_slot1_close
@@ -119,19 +136,7 @@ export function ContentScreen({ kind }: ContentScreenProps) {
       hoursTodayMessage: data.open_status.message,
       weeklySchedule
     }
-  } satisfies Record<
-    ContentKind,
-    {
-      eyebrow: string;
-      title: string;
-      body: string;
-      ctaLabel?: string;
-      ctaHref?: string;
-      hoursTodayLabel?: string;
-      hoursTodayMessage?: string;
-      weeklySchedule?: Array<{ day: string; hours: string; isClosed: boolean }>;
-    }
-  >;
+  } satisfies Record<ContentKind, ContentPanelConfig>;
 
   const current = contentByKind[kind];
 
