@@ -794,15 +794,15 @@ img {
   border: 1px solid rgba(255, 255, 255, 0.72);
   background:
     radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.44) 28%, rgba(255, 255, 255, 0) 54%),
-    radial-gradient(circle at 100% 100%, rgba(96, 165, 250, 0.28) 0%, rgba(96, 165, 250, 0.08) 34%, rgba(96, 165, 250, 0) 62%),
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.34) 0%, rgba(226, 232, 240, 0.12) 34%, rgba(226, 232, 240, 0) 62%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(226, 232, 240, 0.44) 48%, rgba(255, 255, 255, 0.64));
   box-shadow:
     0 26px 60px rgba(15, 23, 42, 0.20),
-    0 10px 24px rgba(37, 99, 235, 0.10),
+    0 10px 24px rgba(15, 23, 42, 0.08),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
     inset 0 -1px 0 rgba(15, 23, 42, 0.08),
     inset 10px 0 24px rgba(255, 255, 255, 0.28),
-    inset -10px -10px 28px rgba(96, 165, 250, 0.10);
+    inset -10px -10px 28px rgba(226, 232, 240, 0.16);
   backdrop-filter: blur(28px) saturate(1.55) contrast(1.04);
   -webkit-backdrop-filter: blur(28px) saturate(1.55) contrast(1.04);
   transform: translateY(0) translateZ(0);
@@ -832,9 +832,9 @@ img {
   border-radius: 999px;
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.12), rgba(255, 255, 255, 0));
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.3), rgba(255, 255, 255, 0));
   filter: blur(12px);
-  opacity: 0.72;
+  opacity: 0.64;
 }
 
 .cart-bar > * {
@@ -880,7 +880,7 @@ img {
   transform: translateY(1px) scale(0.992) translateZ(0);
   box-shadow:
     0 18px 42px rgba(15, 23, 42, 0.18),
-    0 7px 18px rgba(37, 99, 235, 0.09),
+    0 7px 18px rgba(15, 23, 42, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
     inset 0 -1px 0 rgba(15, 23, 42, 0.08);
 }
