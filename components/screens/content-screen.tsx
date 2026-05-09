@@ -111,7 +111,7 @@ export function ContentScreen({ kind }: ContentScreenProps) {
   const faqText = getContentValue(data.content, "faq_text");
   const weeklySchedule = buildWeeklySchedule(data.admin_settings);
 
-  const contentByKind = {
+  const contentByKind: Record<ContentKind, ContentPanelConfig> = {
     location: {
       eyebrow: "Ubicacion",
       title: "Recoge tu pedido aqui",
@@ -136,7 +136,7 @@ export function ContentScreen({ kind }: ContentScreenProps) {
       hoursTodayMessage: data.open_status.message,
       weeklySchedule
     }
-  } satisfies Record<ContentKind, ContentPanelConfig>;
+  };
 
   const current = contentByKind[kind];
 
