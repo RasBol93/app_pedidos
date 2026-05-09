@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "clean": "powershell -NoProfile -Command \"if (Test-Path .next) { Remove-Item -Recurse -Force .next }\"",
-    "dev": "npm run clean && next dev -p 3000",
-    "dev:clean": "npm run clean && next dev -p 3000",
-    "dev:3001": "npm run clean && next dev -p 3001",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "dev": "npm run clean && next dev -p 3001",
+    "dev:clean": "npm run dev",
+    "dev:3001": "npm run dev",
+    "dev:3000": "npm run clean && next dev -p 3000",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run build",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1034.0",
