@@ -22,11 +22,11 @@ export function CartFloatingBar({ tenantId, currency }: CartFloatingBarProps) {
 
   return (
     <TenantLink href="/cart" tenantId={tenantId} className="cart-bar">
-      <div>
+      <div className="cart-bar-copy">
+        <strong>Revisa tu pedido</strong>
         <span className="cart-bar-label">{itemsLabel}</span>
-        <strong>Revisar pedido</strong>
       </div>
-      <span>{formatCurrency(subtotal, currency)}</span>
+      <span className="cart-bar-total">{formatCurrency(subtotal, currency)}</span>
     </TenantLink>
   );
 }
