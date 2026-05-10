@@ -31,39 +31,18 @@ type CartContextValue = {
 const STORAGE_KEY = "restaurant-webapp-cart-v1";
 const CartContext = createContext<CartContextValue | null>(null);
 
-function readStorage() {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(raw) as CartStore;
-  } catch {
-    return {};
-  }
-}
-
 export function CartProvider({ children }: PropsWithChildren) {
   const [carts, setCarts] = useState<CartStore>({});
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setCarts(readStorage());
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEY);
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(carts));
-  }, [carts, isHydrated]);
+    setCarts({});
+    setIsHydrated(true);
+  }, []);
 
   const value = useMemo<CartContextValue>(
     () => ({

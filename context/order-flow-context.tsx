@@ -37,43 +37,18 @@ const EMPTY_DRAFT: CheckoutDraft = {
 
 const OrderFlowContext = createContext<OrderFlowContextValue | null>(null);
 
-function readStorage(): OrderFlowStore {
-  if (typeof window === "undefined") {
-    return { drafts: {}, confirmations: {} };
-  }
-
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return { drafts: {}, confirmations: {} };
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<OrderFlowStore>;
-    return {
-      drafts: parsed.drafts ?? {},
-      confirmations: parsed.confirmations ?? {}
-    };
-  } catch {
-    return { drafts: {}, confirmations: {} };
-  }
-}
-
 export function OrderFlowProvider({ children }: PropsWithChildren) {
   const [store, setStore] = useState<OrderFlowStore>({ drafts: {}, confirmations: {} });
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setStore(readStorage());
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEY);
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  }, [isHydrated, store]);
+    setStore({ drafts: {}, confirmations: {} });
+    setIsHydrated(true);
+  }, []);
 
   const value = useMemo<OrderFlowContextValue>(
     () => ({
