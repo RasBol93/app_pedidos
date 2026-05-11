@@ -10,16 +10,41 @@ export class DashboardApiError extends Error {
   }
 }
 
+const ALLOWED_PERIODS = new Set(["today", "this_week", "month_to_date"]);
+const DASHBOARD_TIMEOUT_MS = 45_000;
+
 type FetchDashboardSummaryParams = {
   tenantId: string;
-  period: DashboardPeriod;
+  period?: DashboardPeriod;
   token: string;
 };
 
+function normalizePeriod(period?: DashboardPeriod) {
+  const value = period?.trim() || "today";
+
+  if (!ALLOWED_PERIODS.has(value)) {
+    throw new DashboardApiError("Periodo de dashboard invalido.", 400);
+  }
+
+  return value as DashboardPeriod;
+}
+
 async function parseDashboardJson<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as
+  const rawText = await response.text().catch(() => "");
+  let payload:
     | { ok?: boolean; error?: string; message?: string; detail?: string }
-    | null;
+    | null = null;
+
+  if (rawText) {
+    try {
+      const parsed = JSON.parse(rawText) as unknown;
+      payload = parsed && typeof parsed === "object"
+        ? (parsed as { ok?: boolean; error?: string; message?: string; detail?: string })
+        : null;
+    } catch {
+      payload = null;
+    }
+  }
 
   if (!response.ok) {
     throw new DashboardApiError(
@@ -43,15 +68,41 @@ export async function fetchDashboardSummary({
   period,
   token
 }: FetchDashboardSummaryParams) {
+  const normalizedTenantId = tenantId.trim();
+  const normalizedToken = token.trim();
+  const normalizedPeriod = normalizePeriod(period);
+
+  if (!normalizedTenantId) {
+    throw new DashboardApiError("Falta tenant_id para cargar el dashboard.", 400);
+  }
+
+  if (!normalizedToken) {
+    throw new DashboardApiError("Falta token para cargar el dashboard.", 400);
+  }
+
   const params = new URLSearchParams({
-    tenant_id: tenantId,
-    period,
-    token
+    tenant_id: normalizedTenantId,
+    period: normalizedPeriod,
+    token: normalizedToken
   });
 
-  const response = await fetch(`/api/admin/dashboard/summary?${params.toString()}`, {
-    cache: "no-store"
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DASHBOARD_TIMEOUT_MS);
 
-  return parseDashboardJson<DashboardSummaryResponse>(response);
+  try {
+    const response = await fetch(`/api/admin/dashboard/summary?${params.toString()}`, {
+      cache: "no-store",
+      signal: controller.signal
+    });
+
+    return parseDashboardJson<DashboardSummaryResponse>(response);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new DashboardApiError("El dashboard tardó demasiado en responder.", 504);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

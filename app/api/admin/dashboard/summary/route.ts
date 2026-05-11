@@ -2,14 +2,41 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const ALLOWED_PERIODS = new Set(["today", "this_week", "month_to_date"]);
+const BACKEND_TIMEOUT_MS = 35_000;
+
 function getBackendApiBaseUrl() {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 
   if (!baseUrl) {
-    throw new Error("NEXT_PUBLIC_API_BASE_URL no esta configurada.");
+    return null;
   }
 
   return baseUrl.replace(/\/+$/, "");
+}
+
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store"
+    }
+  });
+}
+
+async function readBackendJson(response: Response) {
+  const rawText = await response.text().catch(() => "");
+
+  if (!rawText) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(request: Request) {
@@ -19,56 +46,72 @@ export async function GET(request: Request) {
   const period = searchParams.get("period")?.trim() || "today";
 
   if (!tenantId) {
-    return NextResponse.json({ error: "tenant_id es requerido." }, { status: 400 });
+    return jsonResponse({ ok: false, error: "tenant_id es requerido." }, 400);
   }
 
   if (!token) {
-    return NextResponse.json({ error: "token es requerido." }, { status: 400 });
+    return jsonResponse({ ok: false, error: "token es requerido." }, 400);
+  }
+
+  if (!ALLOWED_PERIODS.has(period)) {
+    return jsonResponse({ ok: false, error: "Periodo de dashboard invalido." }, 400);
+  }
+
+  const backendBaseUrl = getBackendApiBaseUrl();
+
+  if (!backendBaseUrl) {
+    return jsonResponse({ ok: false, error: "Dashboard backend is not configured" }, 500);
   }
 
   try {
-    const params = new URLSearchParams({
+    const backendUrl = new URL("/admin/dashboard/summary", backendBaseUrl);
+    backendUrl.search = new URLSearchParams({
       tenant_id: tenantId,
       period,
       token
-    });
+    }).toString();
 
-    const response = await fetch(
-      `${getBackendApiBaseUrl()}/admin/dashboard/summary?${params.toString()}`,
-      {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+
+    let response: Response;
+
+    try {
+      response = await fetch(backendUrl, {
         cache: "no-store",
         headers: {
           Accept: "application/json"
-        }
-      }
-    );
+        },
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
-    const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    const payload = await readBackendJson(response);
 
     if (!response.ok) {
-      return NextResponse.json(
-        payload ?? { error: "No se pudo obtener el dashboard desde el backend." },
-        { status: response.status }
-      );
+      if (response.status === 401 || response.status === 403) {
+        return jsonResponse({ ok: false, error: "Unauthorized dashboard request" }, response.status);
+      }
+
+      if (response.status === 404) {
+        return jsonResponse({ ok: false, error: "Dashboard data not found" }, 404);
+      }
+
+      return jsonResponse({ ok: false, error: "Dashboard backend error" }, response.status);
     }
 
     if (!payload || payload.ok === false) {
-      return NextResponse.json(
-        payload ?? { error: "El backend devolvio una respuesta invalida para dashboard." },
-        { status: 502 }
-      );
+      return jsonResponse({ ok: false, error: "Dashboard backend error" }, 502);
     }
 
-    return NextResponse.json(payload, { status: 200 });
+    return jsonResponse(payload, 200);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo conectar con el backend del dashboard."
-      },
-      { status: 502 }
-    );
+    if (error instanceof Error && error.name === "AbortError") {
+      return jsonResponse({ ok: false, error: "Dashboard backend timeout" }, 504);
+    }
+
+    return jsonResponse({ ok: false, error: "Dashboard backend error" }, 502);
   }
 }
