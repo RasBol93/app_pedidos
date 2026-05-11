@@ -10,6 +10,26 @@ export type DashboardTenant = {
 
 export type DashboardKpis = Record<string, number | string | null | undefined>;
 
+export type DashboardKpiComparison = {
+  key?: string;
+  label?: string;
+  current_value?: number | string | null;
+  reference_value?: number | string | null;
+  delta_absolute?: number | string | null;
+  delta_percent?: number | string | null;
+  direction?: "up" | "down" | "flat" | string;
+  sentiment?: "positive" | "negative" | "neutral" | string;
+  [key: string]: unknown;
+};
+
+export type DashboardKpiComparisonMap = {
+  sales_total?: DashboardKpiComparison[];
+  orders_paid?: DashboardKpiComparison[];
+  avg_ticket?: DashboardKpiComparison[];
+  unique_customers?: DashboardKpiComparison[];
+  [key: string]: DashboardKpiComparison[] | undefined;
+};
+
 export type DashboardSeriesPoint = {
   label?: string;
   date?: string;
@@ -112,6 +132,7 @@ export type DashboardSummaryResponse = {
   tenant: DashboardTenant | string;
   period: DashboardPeriod;
   kpis: DashboardKpis;
+  kpi_comparisons?: DashboardKpiComparisonMap | null;
   sales_by_day: DashboardSeriesPoint[];
   sales_by_hour: DashboardSeriesPoint[];
   top_products: DashboardTopProduct[];

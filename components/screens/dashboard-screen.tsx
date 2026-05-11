@@ -11,6 +11,8 @@ import { fetchDashboardSummary } from "@/services/dashboard-api";
 import type {
   DashboardCategory,
   DashboardInsight,
+  DashboardKpiComparison,
+  DashboardKpiComparisonMap,
   DashboardKpis,
   DashboardPeriod,
   DashboardSeriesPoint,
@@ -20,8 +22,19 @@ import type {
 } from "@/types/dashboard";
 
 type DashboardKpiCard = {
+  key: "sales_total" | "orders_paid" | "avg_ticket" | "unique_customers";
   label: string;
   value: string;
+  comparisons: Array<{
+    id: string;
+    label: string;
+    deltaText: string;
+    sentiment: "positive" | "negative" | "neutral";
+    currentValueLabel: string;
+    referenceValueLabel: string;
+    currentWidth: number;
+    referenceWidth: number;
+  }>;
   tone?: "primary" | "neutral";
 };
 
@@ -43,6 +56,17 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("es-BO", {
     maximumFractionDigits: 0
   }).format(value);
+}
+
+function formatCompactNumber(value: number) {
+  if (Math.abs(value) >= 1000) {
+    return new Intl.NumberFormat("es-BO", {
+      notation: "compact",
+      maximumFractionDigits: 1
+    }).format(value);
+  }
+
+  return formatNumber(value);
 }
 
 function toNumber(value: unknown) {
@@ -105,7 +129,67 @@ function getTenantCurrency(
   return "BOB";
 }
 
-function buildKpiCards(kpis: DashboardKpis, currency: string): DashboardKpiCard[] {
+function formatDeltaPercent(value: number | undefined) {
+  if (value === undefined) {
+    return "sin referencia";
+  }
+
+  if (value === 0) {
+    return "0%";
+  }
+
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${new Intl.NumberFormat("es-BO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(value)}%`;
+}
+
+function getSentiment(value: unknown): "positive" | "negative" | "neutral" {
+  return value === "positive" || value === "negative" || value === "neutral" ? value : "neutral";
+}
+
+function formatComparisonMetric(
+  key: DashboardKpiCard["key"],
+  value: number,
+  currency: string
+) {
+  if (key === "sales_total" || key === "avg_ticket") {
+    return formatCurrency(value, currency);
+  }
+
+  return formatCompactNumber(value);
+}
+
+function buildComparisonItems(
+  kpiKey: DashboardKpiCard["key"],
+  comparisons: DashboardKpiComparison[] | undefined,
+  currency: string
+) {
+  return (comparisons ?? []).map((comparison, index) => {
+    const currentValue = toNumber(comparison.current_value) ?? 0;
+    const referenceValue = toNumber(comparison.reference_value) ?? 0;
+    const deltaPercent = toNumber(comparison.delta_percent);
+    const maxValue = Math.max(currentValue, referenceValue, 1);
+
+    return {
+      id: comparison.key?.trim() || `${kpiKey}-${index + 1}`,
+      label: comparison.label?.trim() || "Comparacion",
+      deltaText: formatDeltaPercent(deltaPercent),
+      sentiment: getSentiment(comparison.sentiment),
+      currentValueLabel: formatComparisonMetric(kpiKey, currentValue, currency),
+      referenceValueLabel: formatComparisonMetric(kpiKey, referenceValue, currency),
+      currentWidth: currentValue > 0 ? (currentValue / maxValue) * 100 : 0,
+      referenceWidth: referenceValue > 0 ? (referenceValue / maxValue) * 100 : 0
+    };
+  });
+}
+
+function buildKpiCards(
+  kpis: DashboardKpis,
+  comparisons: DashboardKpiComparisonMap | null | undefined,
+  currency: string
+): DashboardKpiCard[] {
   const totalSales =
     getRecordNumber(kpis as Record<string, unknown>, [
       "total_sales",
@@ -120,12 +204,6 @@ function buildKpiCards(kpis: DashboardKpis, currency: string): DashboardKpiCard[
       "orders_paid",
       "completed_orders"
     ]) ?? 0;
-  const createdOrders =
-    getRecordNumber(kpis as Record<string, unknown>, [
-      "created_orders",
-      "orders_created",
-      "total_orders"
-    ]) ?? 0;
   const averageTicket =
     getRecordNumber(kpis as Record<string, unknown>, [
       "avg_ticket",
@@ -138,20 +216,33 @@ function buildKpiCards(kpis: DashboardKpis, currency: string): DashboardKpiCard[
       "customers_unique",
       "customers_total"
     ]) ?? 0;
-  const conversion =
-    getRecordNumber(kpis as Record<string, unknown>, [
-      "paid_conversion",
-      "conversion_rate",
-      "order_to_paid_conversion"
-    ]) ?? (createdOrders > 0 ? (paidOrders / createdOrders) * 100 : 0);
 
   return [
-    { label: "Ventas totales", value: formatCurrency(totalSales, currency), tone: "primary" },
-    { label: "Pedidos pagados", value: formatNumber(paidOrders) },
-    { label: "Pedidos creados", value: formatNumber(createdOrders) },
-    { label: "Ticket promedio", value: formatCurrency(averageTicket, currency) },
-    { label: "Clientes unicos", value: formatNumber(uniqueCustomers) },
-    { label: "Conversion pedido -> pagado", value: `${Math.round(conversion)}%` }
+    {
+      key: "sales_total",
+      label: "Ventas totales",
+      value: formatCurrency(totalSales, currency),
+      comparisons: buildComparisonItems("sales_total", comparisons?.sales_total, currency),
+      tone: "primary"
+    },
+    {
+      key: "orders_paid",
+      label: "Pedidos pagados",
+      value: formatNumber(paidOrders),
+      comparisons: buildComparisonItems("orders_paid", comparisons?.orders_paid, currency)
+    },
+    {
+      key: "avg_ticket",
+      label: "Ticket promedio",
+      value: formatCurrency(averageTicket, currency),
+      comparisons: buildComparisonItems("avg_ticket", comparisons?.avg_ticket, currency)
+    },
+    {
+      key: "unique_customers",
+      label: "Clientes unicos",
+      value: formatNumber(uniqueCustomers),
+      comparisons: buildComparisonItems("unique_customers", comparisons?.unique_customers, currency)
+    }
   ];
 }
 
@@ -305,7 +396,10 @@ export function DashboardScreen() {
   }, [selectedPeriod, tenantId, token]);
 
   const currency = getTenantCurrency(data?.tenant ?? "Dashboard", data?.metadata ?? null);
-  const kpiCards = useMemo(() => buildKpiCards(data?.kpis ?? {}, currency), [currency, data?.kpis]);
+  const kpiCards = useMemo(
+    () => buildKpiCards(data?.kpis ?? {}, data?.kpi_comparisons ?? null, currency),
+    [currency, data?.kpi_comparisons, data?.kpis]
+  );
   const salesByDay = useMemo(() => normalizeSeries(data?.sales_by_day ?? [], "Dia"), [data?.sales_by_day]);
   const salesByHour = useMemo(() => normalizeSeries(data?.sales_by_hour ?? [], "Hora"), [data?.sales_by_hour]);
   const topProducts = useMemo(() => normalizeTopProducts(data?.top_products ?? []), [data?.top_products]);
@@ -390,11 +484,49 @@ export function DashboardScreen() {
         <section className="dashboard-kpi-grid">
           {kpiCards.map((card) => (
             <article
-              key={card.label}
+              key={card.key}
               className={`dashboard-card dashboard-kpi-card ${card.tone === "primary" ? "dashboard-kpi-card-primary" : ""}`}
             >
               <span className="dashboard-kpi-label">{card.label}</span>
               <strong className="dashboard-kpi-value">{card.value}</strong>
+              {card.comparisons.length > 0 ? (
+                <div className="dashboard-kpi-comparisons">
+                  {card.comparisons.map((comparison) => (
+                    <div key={comparison.id} className="dashboard-kpi-comparison">
+                      <div className="dashboard-kpi-comparison-head">
+                        <span>{comparison.label}</span>
+                        <strong
+                          className={`dashboard-kpi-delta dashboard-kpi-delta--${comparison.sentiment}`}
+                        >
+                          {comparison.deltaText}
+                        </strong>
+                      </div>
+                      <div className="dashboard-mini-bars" aria-label={`Comparacion ${comparison.label}`}>
+                        <div className="dashboard-mini-bar-row">
+                          <span>Actual</span>
+                          <div className="dashboard-mini-bar-track">
+                            <div
+                              className="dashboard-mini-bar-fill dashboard-mini-bar-fill--actual"
+                              style={{ width: `${comparison.currentWidth}%` }}
+                            />
+                          </div>
+                          <strong>{comparison.currentValueLabel}</strong>
+                        </div>
+                        <div className="dashboard-mini-bar-row">
+                          <span>Ref.</span>
+                          <div className="dashboard-mini-bar-track">
+                            <div
+                              className="dashboard-mini-bar-fill dashboard-mini-bar-fill--reference"
+                              style={{ width: `${comparison.referenceWidth}%` }}
+                            />
+                          </div>
+                          <strong>{comparison.referenceValueLabel}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </article>
           ))}
         </section>
