@@ -1,4 +1,4 @@
-import type { DashboardPeriod, DashboardSummaryResponse } from "@/types/dashboard";
+import type { DashboardPeriodKey, DashboardSummaryResponse } from "@/types/dashboard";
 
 export class DashboardApiError extends Error {
   status: number;
@@ -15,18 +15,18 @@ const DASHBOARD_TIMEOUT_MS = 45_000;
 
 type FetchDashboardSummaryParams = {
   tenantId: string;
-  period?: DashboardPeriod;
+  period?: DashboardPeriodKey;
   token: string;
 };
 
-function normalizePeriod(period?: DashboardPeriod) {
+function normalizePeriod(period?: DashboardPeriodKey) {
   const value = period?.trim() || "today";
 
   if (!ALLOWED_PERIODS.has(value)) {
     throw new DashboardApiError("Periodo de dashboard invalido.", 400);
   }
 
-  return value as DashboardPeriod;
+  return value as DashboardPeriodKey;
 }
 
 async function parseDashboardJson<T>(response: Response): Promise<T> {
