@@ -1,4 +1,10 @@
-export type DashboardPeriod = "today" | "this_week" | "month_to_date" | (string & {});
+export type DashboardPeriodKey = "today" | "this_week" | "month_to_date" | (string & {});
+
+export type DashboardPeriod = {
+  key: DashboardPeriodKey;
+  label: string;
+  range_text?: string;
+};
 
 export type DashboardTenant = {
   tenant_id?: string;
@@ -100,21 +106,29 @@ export type DashboardCustomersSummary = {
   [key: string]: unknown;
 };
 
-export type DashboardSurveySummary = {
-  average_rating?: number | string;
-  avg_rating?: number | string;
-  total_responses?: number | string;
-  responses?: number | string;
-  rating_counts?: Record<string, number | string>;
-  histogram?: Record<string, number | string>;
+export type DashboardSurveyQuestionSummary = {
+  question_id?: string;
+  question_key?: string;
+  question?: string;
+  label?: string;
+  average?: number;
+  total_answers?: number;
+  histogram?: Record<string, number>;
   [key: string]: unknown;
+};
+
+export type DashboardSurveySummary = {
+  total_answers: number;
+  total_unique_responses: number;
+  general_stars_avg: number;
+  general_stars_hist: Record<string, number>;
+  by_question: DashboardSurveyQuestionSummary[];
 };
 
 export type DashboardMetadata = {
   generated_at?: string;
-  generated_at_iso?: string;
-  timezone?: string;
-  currency?: string;
+  source?: string;
+  tenant_id?: string;
   [key: string]: unknown;
 };
 

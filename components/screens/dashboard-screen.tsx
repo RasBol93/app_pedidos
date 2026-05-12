@@ -15,6 +15,7 @@ import type {
   DashboardKpiComparisonMap,
   DashboardKpis,
   DashboardPeriod,
+  DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSummaryResponse,
   DashboardTopCustomer,
@@ -64,7 +65,7 @@ type DashboardHourlyChartRow = {
   orders: number;
 };
 
-const PERIOD_OPTIONS: Array<{ value: DashboardPeriod; label: string }> = [
+const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
   { value: "month_to_date", label: "Mes en curso" }
@@ -418,7 +419,7 @@ function normalizeSalesByHourChart(items: DashboardSeriesPoint[]): DashboardHour
     .sort((left, right) => parseHourLabel(left.label) - parseHourLabel(right.label));
 }
 
-function getHourlyAnalysisInfo(period: DashboardPeriod) {
+function getHourlyAnalysisInfo(period: DashboardPeriodKey) {
   if (period === "today") {
     return "Este análisis muestra las ventas pagadas y la cantidad de pedidos pagados por hora del día. Los montos están expresados en Bs.";
   }
@@ -471,14 +472,9 @@ function normalizeSurveyHistogram(survey: DashboardSummaryResponse["survey_summa
     return [];
   }
 
-  const raw = survey.rating_counts ?? survey.histogram;
-  if (!raw) {
-    return [];
-  }
-
   return [1, 2, 3, 4, 5].map((rating) => ({
     label: `${rating}`,
-    value: toNumber(raw[String(rating)]) ?? 0
+    value: toNumber(survey.general_stars_hist[String(rating)]) ?? 0
   }));
 }
 
@@ -522,7 +518,7 @@ function formatPercentage(value: number | null | undefined) {
   }).format(value)}%`;
 }
 
-function getSalesGoalTitle(period: DashboardPeriod) {
+function getSalesGoalTitle(period: DashboardPeriodKey) {
   if (period === "today") {
     return "Objetivo de ventas de hoy";
   }
@@ -554,11 +550,11 @@ function getSalesGoalToneClassName(achievementPercent: number | null | undefined
   return "dashboard-sales-goal-fill--danger";
 }
 
-function getPeriodChartTitle(period: DashboardPeriod) {
+function getPeriodChartTitle(period: DashboardPeriodKey) {
   return period === "this_week" ? "Comportamiento de la semana" : "Comportamiento del mes";
 }
 
-function getPeriodChartInfo(period: DashboardPeriod) {
+function getPeriodChartInfo(period: DashboardPeriodKey) {
   if (period === "this_week") {
     return "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos.";
   }
@@ -567,7 +563,7 @@ function getPeriodChartInfo(period: DashboardPeriod) {
 }
 
 function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
-  const generatedAt = metadata?.generated_at || metadata?.generated_at_iso;
+  const generatedAt = metadata?.generated_at;
 
   if (generatedAt) {
     const date = new Date(generatedAt);
@@ -579,7 +575,7 @@ function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
   return new Date();
 }
 
-function buildPeriodContext(period: DashboardPeriod, metadata: DashboardSummaryResponse["metadata"]): DashboardPeriodContext {
+function buildPeriodContext(period: DashboardPeriodKey, metadata: DashboardSummaryResponse["metadata"]): DashboardPeriodContext {
   const contextDate = resolveContextDate(metadata);
 
   if (period === "today") {
@@ -650,8 +646,8 @@ export function DashboardScreen() {
   const searchParams = useSearchParams();
   const tenantId = searchParams.get("tenant_id")?.trim() || "";
   const token = searchParams.get("token")?.trim() || "";
-  const periodFromUrl = (searchParams.get("period")?.trim() as DashboardPeriod | null) || null;
-  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>(periodFromUrl || "month_to_date");
+  const periodFromUrl = (searchParams.get("period")?.trim() as DashboardPeriodKey | null) || null;
+  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriodKey>(periodFromUrl || "month_to_date");
   const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
   const [isPeriodChartInfoOpen, setIsPeriodChartInfoOpen] = useState(false);
   const [isHourlyAnalysisInfoOpen, setIsHourlyAnalysisInfoOpen] = useState(false);
@@ -750,6 +746,12 @@ export function DashboardScreen() {
   const salesGoalOverTarget =
     salesGoalTarget !== undefined && salesGoalCurrent > salesGoalTarget ? salesGoalCurrent - salesGoalTarget : 0;
   const salesGoalToneClassName = getSalesGoalToneClassName(salesGoalAchievement);
+  const displayPeriodLabel =
+    data?.period?.label || PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label || selectedPeriod;
+  const periodRangeText = data?.period?.range_text?.trim() || "";
+  const surveyAverage = toNumber(data?.survey_summary?.general_stars_avg) ?? 0;
+  const surveyTotalAnswers = toNumber(data?.survey_summary?.total_answers) ?? 0;
+  const surveyUniqueResponses = toNumber(data?.survey_summary?.total_unique_responses) ?? 0;
   const currentProgressLabelClassName = [
     "dashboard-period-progress-label-current",
     clampedProgressPercent <= 10 ? "dashboard-period-progress-label-current--start" : "",
@@ -801,11 +803,12 @@ export function DashboardScreen() {
           </div>
           <div className="dashboard-header-meta">
             <span className="dashboard-period-chip">
-              {PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label || data.period}
+              {displayPeriodLabel}
             </span>
             <span className="dashboard-updated-at">
-              Actualizado: {formatGeneratedAt(data.metadata?.generated_at || data.metadata?.generated_at_iso)}
+              Actualizado: {formatGeneratedAt(data.metadata?.generated_at)}
             </span>
+            {periodRangeText ? <span className="dashboard-updated-at">Periodo: {periodRangeText}</span> : null}
           </div>
         </section>
 
@@ -1180,21 +1183,18 @@ export function DashboardScreen() {
             <div className="dashboard-stat-stack">
               <div className="dashboard-mini-stat">
                 <span>Promedio general</span>
-                <strong>
-                  {toNumber(data.survey_summary?.average_rating ?? data.survey_summary?.avg_rating)?.toFixed(1) ??
-                    "0.0"}
-                </strong>
+                <strong>{surveyAverage.toFixed(1)}</strong>
               </div>
               <div className="dashboard-mini-stat">
                 <span>Total respuestas</span>
-                <strong>
-                  {formatNumber(
-                    toNumber(data.survey_summary?.total_responses ?? data.survey_summary?.responses) ?? 0
-                  )}
-                </strong>
+                <strong>{formatNumber(surveyTotalAnswers)}</strong>
+              </div>
+              <div className="dashboard-mini-stat">
+                <span>Respuestas unicas</span>
+                <strong>{formatNumber(surveyUniqueResponses)}</strong>
               </div>
             </div>
-            {surveyHistogram.length > 0 ? (
+            {surveyTotalAnswers > 0 && surveyHistogram.some((item) => item.value > 0) ? (
               <div className="dashboard-horizontal-list">
                 {surveyHistogram.map((item) => (
                   <div key={item.label} className="dashboard-horizontal-row">
