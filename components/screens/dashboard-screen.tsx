@@ -50,6 +50,13 @@ type DashboardPeriodContext = {
   progressCaption: string;
 };
 
+type DashboardPeriodChartRow = {
+  id: string;
+  label: string;
+  sales: number;
+  orders: number;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriod; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
@@ -66,6 +73,8 @@ const KPI_METHODOLOGY: Record<DashboardKpiCard["key"], string> = {
   unique_customers:
     "Clientes únicos cuenta la cantidad de contactos distintos que hicieron pedidos pagados dentro del período. Si un cliente hizo varios pedidos, cuenta una sola vez."
 };
+
+const WEEK_DAY_LABELS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] as const;
 
 function formatCurrency(amount: number, currency = "BOB") {
   return new Intl.NumberFormat("es-BO", {
@@ -112,6 +121,10 @@ function formatCompactNumber(value: number) {
   }
 
   return formatNumber(value);
+}
+
+function formatOrdersLabel(value: number) {
+  return `${formatNumber(value)} ${value === 1 ? "pedido" : "pedidos"}`;
 }
 
 function toNumber(value: unknown) {
@@ -307,6 +320,66 @@ function normalizeSeries(items: DashboardSeriesPoint[], fallbackLabel: string) {
   });
 }
 
+function getWeekdayIndexFromLabel(label: string) {
+  const normalized = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (normalized.startsWith("lun")) return 0;
+  if (normalized.startsWith("mar")) return 1;
+  if (normalized.startsWith("mie") || normalized.startsWith("mer")) return 2;
+  if (normalized.startsWith("jue")) return 3;
+  if (normalized.startsWith("vie")) return 4;
+  if (normalized.startsWith("sab")) return 5;
+  if (normalized.startsWith("dom")) return 6;
+
+  return undefined;
+}
+
+function getWeekdayIndexFromRecord(record: Record<string, unknown>) {
+  const dateText = getRecordText(record, ["date"]);
+
+  if (dateText) {
+    const date = new Date(dateText);
+    if (!Number.isNaN(date.getTime())) {
+      const day = date.getDay();
+      return day === 0 ? 6 : day - 1;
+    }
+  }
+
+  const label = getRecordText(record, ["label", "day"]);
+  return label ? getWeekdayIndexFromLabel(label) : undefined;
+}
+
+function normalizeSalesByDayChart(items: DashboardSeriesPoint[], period: DashboardPeriod): DashboardPeriodChartRow[] {
+  const normalized = items.map((item, index) => {
+    const record = item as Record<string, unknown>;
+    return {
+      id: getRecordText(record, ["date", "label", "day"]) || `period-row-${index + 1}`,
+      label: getRecordText(record, ["label", "date", "day"]) || `Dia ${index + 1}`,
+      sales: getRecordNumber(record, ["sales", "total", "revenue", "amount", "value"]) ?? 0,
+      orders: getRecordNumber(record, ["orders_paid", "paid_orders", "orders", "count"]) ?? 0,
+      weekdayIndex: getWeekdayIndexFromRecord(record)
+    };
+  });
+
+  if (period !== "this_week") {
+    return normalized.map(({ id, label, sales, orders }) => ({ id, label, sales, orders }));
+  }
+
+  return WEEK_DAY_LABELS.map((label, index) => {
+    const match = normalized.find((item) => item.weekdayIndex === index);
+
+    return {
+      id: `weekday-${label}`,
+      label,
+      sales: match?.sales ?? 0,
+      orders: match?.orders ?? 0
+    };
+  });
+}
+
 function normalizeTopProducts(items: DashboardTopProduct[]) {
   return items.map((item, index) => {
     const record = item as Record<string, unknown>;
@@ -431,6 +504,18 @@ function getSalesGoalToneClassName(achievementPercent: number | null | undefined
   return "dashboard-sales-goal-fill--danger";
 }
 
+function getPeriodChartTitle(period: DashboardPeriod) {
+  return period === "this_week" ? "Comportamiento de la semana" : "Comportamiento del mes";
+}
+
+function getPeriodChartInfo(period: DashboardPeriod) {
+  if (period === "this_week") {
+    return "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos.";
+  }
+
+  return "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados durante el mes en curso según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos confirmados como pagados.";
+}
+
 function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
   const generatedAt = metadata?.generated_at || metadata?.generated_at_iso;
 
@@ -518,6 +603,7 @@ export function DashboardScreen() {
   const periodFromUrl = (searchParams.get("period")?.trim() as DashboardPeriod | null) || null;
   const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>(periodFromUrl || "month_to_date");
   const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
+  const [isPeriodChartInfoOpen, setIsPeriodChartInfoOpen] = useState(false);
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -573,7 +659,10 @@ export function DashboardScreen() {
     () => buildKpiCards(data?.kpis ?? {}, data?.kpi_comparisons ?? null, currency),
     [currency, data?.kpi_comparisons, data?.kpis]
   );
-  const salesByDay = useMemo(() => normalizeSeries(data?.sales_by_day ?? [], "Dia"), [data?.sales_by_day]);
+  const periodChartRows = useMemo(
+    () => normalizeSalesByDayChart(data?.sales_by_day ?? [], selectedPeriod),
+    [data?.sales_by_day, selectedPeriod]
+  );
   const salesByHour = useMemo(() => normalizeSeries(data?.sales_by_hour ?? [], "Hora"), [data?.sales_by_hour]);
   const topProducts = useMemo(() => normalizeTopProducts(data?.top_products ?? []), [data?.top_products]);
   const categories = useMemo(() => normalizeCategories(data?.categories ?? []), [data?.categories]);
@@ -618,7 +707,7 @@ export function DashboardScreen() {
     .filter(Boolean)
     .join(" ");
 
-  const maxSalesByDay = Math.max(...salesByDay.map((item) => item.value), 1);
+  const maxPeriodChartSales = Math.max(...periodChartRows.map((item) => item.sales), 1);
   const maxSalesByHour = Math.max(...salesByHour.map((item) => item.value), 1);
   const maxCategoryValue = Math.max(...categories.map((item) => item.value), 1);
   const maxSurveyValue = Math.max(...surveyHistogram.map((item) => item.value), 1);
@@ -837,30 +926,58 @@ export function DashboardScreen() {
         </section>
 
         <section className="dashboard-grid">
-          <article className="dashboard-card dashboard-panel">
-            <div className="dashboard-panel-heading">
-              <p className="eyebrow">Ventas por dia</p>
-              <h2>Comportamiento diario</h2>
-            </div>
-            {salesByDay.length === 0 ? (
-              <p className="dashboard-empty-copy">Aun no hay ventas por dia para este periodo.</p>
-            ) : (
-              <div className="dashboard-day-chart" aria-label="Grafico de ventas por dia">
-                {salesByDay.map((item) => (
-                  <div key={item.label} className="dashboard-day-bar-group">
-                    <span className="dashboard-day-bar-value">{formatNumber(item.value)}</span>
-                    <div className="dashboard-day-bar-track">
-                      <div
-                        className="dashboard-day-bar-fill"
-                        style={{ height: `${Math.max((item.value / maxSalesByDay) * 100, 8)}%` }}
-                      />
-                    </div>
-                    <span className="dashboard-day-bar-label">{item.label}</span>
-                  </div>
-                ))}
+          {selectedPeriod !== "today" ? (
+            <article className="dashboard-card dashboard-panel dashboard-period-chart">
+              <div className="dashboard-period-chart-header">
+                <div>
+                  <p className="eyebrow">
+                    {selectedPeriod === "this_week" ? "Semana" : "Mes en curso"}
+                  </p>
+                  <h2 className="dashboard-period-chart-title">{getPeriodChartTitle(selectedPeriod)}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="dashboard-period-chart-info-button"
+                  aria-label="Explicacion del grafico de comportamiento"
+                  aria-expanded={isPeriodChartInfoOpen ? "true" : "false"}
+                  onClick={() => setIsPeriodChartInfoOpen((current) => !current)}
+                >
+                  i
+                </button>
               </div>
-            )}
-          </article>
+              {isPeriodChartInfoOpen ? (
+                <div className="dashboard-period-chart-info">
+                  <p>{getPeriodChartInfo(selectedPeriod)}</p>
+                </div>
+              ) : null}
+              {periodChartRows.length === 0 ? (
+                <p className="dashboard-empty-copy">
+                  Aun no hay datos de comportamiento para este periodo.
+                </p>
+              ) : (
+                <div className="dashboard-period-bars" aria-label={getPeriodChartTitle(selectedPeriod)}>
+                  {periodChartRows.map((item) => (
+                    <div key={item.id} className="dashboard-period-bar-row">
+                      <div className="dashboard-period-bar-label">
+                        <strong>{item.label}</strong>
+                        <span className="dashboard-period-bar-orders">{formatOrdersLabel(item.orders)}</span>
+                      </div>
+                      <div className="dashboard-period-bar-track">
+                        <div
+                          className="dashboard-period-bar-fill"
+                          style={{ width: `${Math.max((item.sales / maxPeriodChartSales) * 100, item.sales > 0 ? 6 : 0)}%` }}
+                        />
+                      </div>
+                      <div className="dashboard-period-bar-meta">
+                        <strong className="dashboard-period-bar-sales">{formatCurrency(item.sales, currency)}</strong>
+                        <span className="dashboard-period-bar-orders">{formatOrdersLabel(item.orders)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          ) : null}
 
           <article className="dashboard-card dashboard-panel">
             <div className="dashboard-panel-heading">

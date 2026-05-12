@@ -2254,6 +2254,101 @@ img {
   font-weight: 780;
 }
 
+.dashboard-period-chart {
+  gap: 14px;
+}
+
+.dashboard-period-chart-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-period-chart-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.1rem;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 780;
+}
+
+.dashboard-period-chart-info-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #f8fafc;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dashboard-period-chart-info {
+  padding: 12px;
+  border-radius: 16px;
+  background: #fffbea;
+  border: 1px solid rgba(250, 204, 21, 0.26);
+}
+
+.dashboard-period-chart-info p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.dashboard-period-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-period-bar-row {
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-period-bar-label,
+.dashboard-period-bar-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dashboard-period-bar-label strong,
+.dashboard-period-bar-sales {
+  color: #172554;
+}
+
+.dashboard-period-bar-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.dashboard-period-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #facc15, #f59e0b);
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.18);
+}
+
+.dashboard-period-bar-meta,
+.dashboard-period-bar-orders {
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .dashboard-day-chart {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
