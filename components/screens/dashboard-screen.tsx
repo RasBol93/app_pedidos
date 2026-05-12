@@ -134,6 +134,10 @@ function formatOrdersLabel(value: number) {
   return `${formatNumber(value)} ${value === 1 ? "pedido" : "pedidos"}`;
 }
 
+function formatUnitsLabel(value: number) {
+  return `${formatNumber(value)} ${value === 1 ? "unidad" : "unidades"}`;
+}
+
 function toNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -436,6 +440,7 @@ function normalizeTopProducts(items: DashboardTopProduct[]) {
     return {
       id: getRecordText(record, ["sku", "name", "product_name", "title"]) || `product-${index + 1}`,
       name: getRecordText(record, ["name", "product_name", "title", "sku"]) || "Producto",
+      category: getRecordText(record, ["category", "category_name", "label"]) || "",
       revenue: getRecordNumber(record, ["revenue", "sales", "total", "amount"]) ?? 0,
       units: getRecordNumber(record, ["quantity", "units", "count", "orders"]) ?? 0
     };
@@ -1084,19 +1089,26 @@ export function DashboardScreen() {
               <h2>Lo mas vendido</h2>
             </div>
             {topProducts.length === 0 ? (
-              <p className="dashboard-empty-copy">Todavia no hay productos destacados para este periodo.</p>
+              <p className="dashboard-empty-copy">Todavía no hay productos vendidos en este período.</p>
             ) : (
-              <div className="dashboard-ranked-list">
-                {topProducts.map((item, index) => (
-                  <div key={item.id} className="dashboard-ranked-row">
-                    <span className="dashboard-rank-badge">{index + 1}</span>
-                    <div className="dashboard-ranked-copy">
-                      <strong>{item.name}</strong>
-                      <span>{formatNumber(item.units)} unidades</span>
+              <div className="dashboard-top-product-list">
+                {topProducts.slice(0, 3).map((item, index) => (
+                  <div key={item.id} className="dashboard-top-product-item">
+                    <span className="dashboard-top-product-rank" aria-hidden="true">
+                      {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
+                    </span>
+                    <div className="dashboard-top-product-main">
+                      <strong className="dashboard-top-product-name">{item.name}</strong>
+                      {item.category ? (
+                        <span className="dashboard-top-product-category">{item.category}</span>
+                      ) : null}
                     </div>
-                    <strong className="dashboard-ranked-value">
-                      {formatCurrency(item.revenue, currency)}
-                    </strong>
+                    <div className="dashboard-top-product-metrics">
+                      <strong className="dashboard-top-product-sales">
+                        {formatCurrency(item.revenue, currency)}
+                      </strong>
+                      <span className="dashboard-top-product-units">{formatUnitsLabel(item.units)}</span>
+                    </div>
                   </div>
                 ))}
               </div>

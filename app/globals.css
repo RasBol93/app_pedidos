@@ -2569,6 +2569,54 @@ img {
   letter-spacing: -0.02em;
 }
 
+.dashboard-top-product-list {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-top-product-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.dashboard-top-product-rank {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.dashboard-top-product-main,
+.dashboard-top-product-metrics {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dashboard-top-product-name,
+.dashboard-top-product-sales {
+  color: #172554;
+}
+
+.dashboard-top-product-name {
+  letter-spacing: -0.02em;
+}
+
+.dashboard-top-product-category,
+.dashboard-top-product-units {
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.dashboard-top-product-metrics {
+  text-align: right;
+}
+
 .dashboard-category-row {
   gap: 8px;
 }
