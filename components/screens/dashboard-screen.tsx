@@ -550,6 +550,14 @@ export function DashboardScreen() {
     () => buildPeriodContext(selectedPeriod, data?.metadata ?? null),
     [data?.metadata, selectedPeriod]
   );
+  const clampedProgressPercent = Math.min(Math.max(periodContext.progressPercent, 0), 100);
+  const currentProgressLabelClassName = [
+    "dashboard-period-progress-label-current",
+    clampedProgressPercent <= 10 ? "dashboard-period-progress-label-current--start" : "",
+    clampedProgressPercent >= 90 ? "dashboard-period-progress-label-current--end" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const maxSalesByDay = Math.max(...salesByDay.map((item) => item.value), 1);
   const maxSalesByHour = Math.max(...salesByHour.map((item) => item.value), 1);
@@ -627,13 +635,18 @@ export function DashboardScreen() {
             <div className="dashboard-period-progress-track">
               <div
                 className="dashboard-period-progress-fill"
-                style={{ width: `${Math.min(Math.max(periodContext.progressPercent, 0), 100)}%` }}
+                style={{ width: `${clampedProgressPercent}%` }}
               />
             </div>
             <div className="dashboard-period-progress-labels">
-              <span>{periodContext.progressStartLabel}</span>
-              <span>{periodContext.progressCurrentLabel}</span>
-              <span>{periodContext.progressEndLabel}</span>
+              <span className="dashboard-period-progress-label-start">{periodContext.progressStartLabel}</span>
+              <span
+                className={currentProgressLabelClassName}
+                style={{ left: `${clampedProgressPercent}%` }}
+              >
+                {periodContext.progressCurrentLabel}
+              </span>
+              <span className="dashboard-period-progress-label-end">{periodContext.progressEndLabel}</span>
             </div>
           </div>
           <div className="dashboard-period-context-copy">

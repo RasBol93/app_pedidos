@@ -1925,18 +1925,49 @@ img {
 }
 
 .dashboard-period-progress-labels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  position: relative;
+  min-height: 18px;
   font-size: 0.78rem;
   color: #64748b;
 }
 
-.dashboard-period-progress-labels span:nth-child(2) {
+.dashboard-period-progress-label-start,
+.dashboard-period-progress-label-end,
+.dashboard-period-progress-label-current {
+  position: absolute;
+  top: 0;
+  max-width: 44%;
+  white-space: nowrap;
+}
+
+.dashboard-period-progress-label-start {
+  left: 0;
+  color: #64748b;
+}
+
+.dashboard-period-progress-label-current {
+  color: #172554;
+  font-weight: 800;
+  transform: translateX(-50%);
   text-align: center;
 }
 
-.dashboard-period-progress-labels span:last-child {
+.dashboard-period-progress-label-current--start {
+  left: 0 !important;
+  transform: none;
+  text-align: left;
+}
+
+.dashboard-period-progress-label-current--end {
+  left: auto !important;
+  right: 0;
+  transform: none;
+  text-align: right;
+}
+
+.dashboard-period-progress-label-end {
+  right: 0;
+  color: #64748b;
   text-align: right;
 }
 
