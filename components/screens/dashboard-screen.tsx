@@ -57,6 +57,13 @@ type DashboardPeriodChartRow = {
   orders: number;
 };
 
+type DashboardHourlyChartRow = {
+  id: string;
+  label: string;
+  sales: number;
+  orders: number;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriod; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
@@ -380,6 +387,49 @@ function normalizeSalesByDayChart(items: DashboardSeriesPoint[], period: Dashboa
   });
 }
 
+function parseHourLabel(label: string) {
+  const match = label.match(/^(\d{1,2}):(\d{2})$/);
+
+  if (!match) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function normalizeSalesByHourChart(items: DashboardSeriesPoint[]): DashboardHourlyChartRow[] {
+  return items
+    .map((item, index) => {
+      const record = item as Record<string, unknown>;
+      return {
+        id: getRecordText(record, ["label", "hour", "time"]) || `hour-${index + 1}`,
+        label: getRecordText(record, ["label", "hour", "time"]) || `Hora ${index + 1}`,
+        sales: getRecordNumber(record, ["sales", "total", "revenue", "amount", "value"]) ?? 0,
+        orders: getRecordNumber(record, ["orders_paid", "paid_orders", "orders", "count"]) ?? 0
+      };
+    })
+    .sort((left, right) => parseHourLabel(left.label) - parseHourLabel(right.label));
+}
+
+function getHourlyAnalysisInfo(period: DashboardPeriod) {
+  if (period === "today") {
+    return "Este análisis muestra las ventas pagadas y la cantidad de pedidos pagados por hora del día. Los montos están expresados en Bs.";
+  }
+
+  if (period === "this_week") {
+    return "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante la semana seleccionada. Los montos están expresados en Bs.";
+  }
+
+  return "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante el mes en curso. Los montos están expresados en Bs.";
+}
+
 function normalizeTopProducts(items: DashboardTopProduct[]) {
   return items.map((item, index) => {
     const record = item as Record<string, unknown>;
@@ -604,6 +654,7 @@ export function DashboardScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>(periodFromUrl || "month_to_date");
   const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
   const [isPeriodChartInfoOpen, setIsPeriodChartInfoOpen] = useState(false);
+  const [isHourlyAnalysisInfoOpen, setIsHourlyAnalysisInfoOpen] = useState(false);
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -663,7 +714,7 @@ export function DashboardScreen() {
     () => normalizeSalesByDayChart(data?.sales_by_day ?? [], selectedPeriod),
     [data?.sales_by_day, selectedPeriod]
   );
-  const salesByHour = useMemo(() => normalizeSeries(data?.sales_by_hour ?? [], "Hora"), [data?.sales_by_hour]);
+  const salesByHour = useMemo(() => normalizeSalesByHourChart(data?.sales_by_hour ?? []), [data?.sales_by_hour]);
   const topProducts = useMemo(() => normalizeTopProducts(data?.top_products ?? []), [data?.top_products]);
   const categories = useMemo(() => normalizeCategories(data?.categories ?? []), [data?.categories]);
   const topCustomers = useMemo(
@@ -708,7 +759,7 @@ export function DashboardScreen() {
     .join(" ");
 
   const maxPeriodChartSales = Math.max(...periodChartRows.map((item) => item.sales), 1);
-  const maxSalesByHour = Math.max(...salesByHour.map((item) => item.value), 1);
+  const maxSalesByHour = Math.max(...salesByHour.map((item) => item.sales), 1);
   const maxCategoryValue = Math.max(...categories.map((item) => item.value), 1);
   const maxSurveyValue = Math.max(...surveyHistogram.map((item) => item.value), 1);
 
@@ -979,27 +1030,48 @@ export function DashboardScreen() {
             </article>
           ) : null}
 
-          <article className="dashboard-card dashboard-panel">
-            <div className="dashboard-panel-heading">
-              <p className="eyebrow">Ventas por hora</p>
-              <h2>Picos del dia</h2>
+          <article className="dashboard-card dashboard-panel dashboard-hourly-analysis">
+            <div className="dashboard-hourly-header">
+              <div>
+                <p className="eyebrow">Horas</p>
+                <h2 className="dashboard-hourly-title">Analisis horario</h2>
+              </div>
+              <button
+                type="button"
+                className="dashboard-hourly-info-button"
+                aria-label="Explicacion del analisis horario"
+                aria-expanded={isHourlyAnalysisInfoOpen ? "true" : "false"}
+                onClick={() => setIsHourlyAnalysisInfoOpen((current) => !current)}
+              >
+                i
+              </button>
             </div>
+            {isHourlyAnalysisInfoOpen ? (
+              <div className="dashboard-hourly-info">
+                <p>{getHourlyAnalysisInfo(selectedPeriod)}</p>
+              </div>
+            ) : null}
             {salesByHour.length === 0 ? (
               <p className="dashboard-empty-copy">Aun no hay ventas por hora para este periodo.</p>
             ) : (
-              <div className="dashboard-horizontal-list">
-                {salesByHour.map((item) => (
-                  <div key={item.label} className="dashboard-horizontal-row">
-                    <span className="dashboard-horizontal-label">{item.label}</span>
-                    <div className="dashboard-horizontal-track">
-                      <div
-                        className="dashboard-horizontal-fill"
-                        style={{ width: `${Math.max((item.value / maxSalesByHour) * 100, 6)}%` }}
-                      />
+              <div className="dashboard-hourly-scroll">
+                <div className="dashboard-hourly-bars" aria-label="Analisis horario">
+                  {salesByHour.map((item) => (
+                    <div key={item.id} className="dashboard-hourly-column">
+                      <div className="dashboard-hourly-meta">
+                        <strong className="dashboard-hourly-sales">{formatCurrency(item.sales, currency)}</strong>
+                        <span className="dashboard-hourly-orders">{formatOrdersLabel(item.orders)}</span>
+                      </div>
+                      <div className="dashboard-hourly-bar-wrap">
+                        <div
+                          className="dashboard-hourly-bar"
+                          style={{ height: `${Math.max((item.sales / maxSalesByHour) * 100, item.sales > 0 ? 8 : 0)}%` }}
+                        />
+                      </div>
+                      <span className="dashboard-hourly-label">{item.label}</span>
                     </div>
-                    <strong className="dashboard-horizontal-value">{formatNumber(item.value)}</strong>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </article>
