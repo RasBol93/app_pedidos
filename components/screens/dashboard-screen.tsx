@@ -14,7 +14,6 @@ import type {
   DashboardKpiComparison,
   DashboardKpiComparisonMap,
   DashboardKpis,
-  DashboardPeriod,
   DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSummaryResponse,
@@ -360,7 +359,7 @@ function getWeekdayIndexFromRecord(record: Record<string, unknown>) {
   return label ? getWeekdayIndexFromLabel(label) : undefined;
 }
 
-function normalizeSalesByDayChart(items: DashboardSeriesPoint[], period: DashboardPeriod): DashboardPeriodChartRow[] {
+function normalizeSalesByDayChart(items: DashboardSeriesPoint[], period: DashboardPeriodKey): DashboardPeriodChartRow[] {
   const normalized = items.map((item, index) => {
     const record = item as Record<string, unknown>;
     return {
