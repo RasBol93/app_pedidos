@@ -1880,6 +1880,77 @@ img {
   color: #1d4ed8;
 }
 
+.dashboard-period-context {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.dashboard-period-context-header {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-period-context-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.08rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.dashboard-period-context-caption {
+  color: #1d4ed8;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.dashboard-period-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-period-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.dashboard-period-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #60a5fa, #2563eb);
+}
+
+.dashboard-period-progress-labels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.dashboard-period-progress-labels span:nth-child(2) {
+  text-align: center;
+}
+
+.dashboard-period-progress-labels span:last-child {
+  text-align: right;
+}
+
+.dashboard-period-context-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-period-context-copy p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.55;
+}
+
 .dashboard-kpi-grid,
 .dashboard-grid {
   display: grid;
@@ -1905,6 +1976,45 @@ img {
 
 .dashboard-kpi-card-primary {
   background: linear-gradient(180deg, #eff6ff, #ffffff);
+}
+
+.dashboard-kpi-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-kpi-info-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #f8fafc;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dashboard-kpi-methodology {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fbff;
+  border: 1px solid rgba(191, 219, 254, 0.55);
+}
+
+.dashboard-kpi-methodology p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.84rem;
+  line-height: 1.55;
 }
 
 .dashboard-kpi-comparisons {
@@ -2215,11 +2325,16 @@ img {
   }
 
   .dashboard-kpi-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-period-context-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
   }
 
   .dashboard-horizontal-row {

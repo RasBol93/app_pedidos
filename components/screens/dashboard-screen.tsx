@@ -25,6 +25,7 @@ type DashboardKpiCard = {
   key: "sales_total" | "orders_paid" | "avg_ticket" | "unique_customers";
   label: string;
   value: string;
+  methodology: string;
   comparisons: Array<{
     id: string;
     label: string;
@@ -38,11 +39,33 @@ type DashboardKpiCard = {
   tone?: "primary" | "neutral";
 };
 
+type DashboardPeriodContext = {
+  title: string;
+  description: string;
+  note: string;
+  progressPercent: number;
+  progressStartLabel: string;
+  progressCurrentLabel: string;
+  progressEndLabel: string;
+  progressCaption: string;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriod; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
   { value: "month_to_date", label: "Mes en curso" }
 ];
+
+const KPI_METHODOLOGY: Record<DashboardKpiCard["key"], string> = {
+  sales_total:
+    "Ventas totales suma el monto de los pedidos pagados dentro del período seleccionado. No incluye pedidos creados que todavía no fueron pagados. Las comparaciones usan períodos equivalentes según el período seleccionado.",
+  orders_paid:
+    "Pedidos pagados cuenta solo los pedidos confirmados como pagados dentro del período seleccionado. No incluye pedidos pendientes o no pagados.",
+  avg_ticket:
+    "Ticket promedio se calcula dividiendo las ventas totales entre los pedidos pagados del período. Mide cuánto gasta en promedio cada cliente por pedido pagado.",
+  unique_customers:
+    "Clientes únicos cuenta la cantidad de contactos distintos que hicieron pedidos pagados dentro del período. Si un cliente hizo varios pedidos, cuenta una sola vez."
+};
 
 function formatCurrency(amount: number, currency = "BOB") {
   return new Intl.NumberFormat("es-BO", {
@@ -55,6 +78,28 @@ function formatCurrency(amount: number, currency = "BOB") {
 function formatNumber(value: number) {
   return new Intl.NumberFormat("es-BO", {
     maximumFractionDigits: 0
+  }).format(value);
+}
+
+function formatShortDate(value: Date) {
+  return new Intl.DateTimeFormat("es-BO", {
+    day: "numeric",
+    month: "short"
+  }).format(value);
+}
+
+function formatWeekdayDate(value: Date) {
+  return new Intl.DateTimeFormat("es-BO", {
+    weekday: "short",
+    day: "numeric",
+    month: "short"
+  }).format(value);
+}
+
+function formatTime(value: Date) {
+  return new Intl.DateTimeFormat("es-BO", {
+    hour: "2-digit",
+    minute: "2-digit"
   }).format(value);
 }
 
@@ -222,6 +267,7 @@ function buildKpiCards(
       key: "sales_total",
       label: "Ventas totales",
       value: formatCurrency(totalSales, currency),
+      methodology: KPI_METHODOLOGY.sales_total,
       comparisons: buildComparisonItems("sales_total", comparisons?.sales_total, currency),
       tone: "primary"
     },
@@ -229,18 +275,21 @@ function buildKpiCards(
       key: "orders_paid",
       label: "Pedidos pagados",
       value: formatNumber(paidOrders),
+      methodology: KPI_METHODOLOGY.orders_paid,
       comparisons: buildComparisonItems("orders_paid", comparisons?.orders_paid, currency)
     },
     {
       key: "avg_ticket",
       label: "Ticket promedio",
       value: formatCurrency(averageTicket, currency),
+      methodology: KPI_METHODOLOGY.avg_ticket,
       comparisons: buildComparisonItems("avg_ticket", comparisons?.avg_ticket, currency)
     },
     {
       key: "unique_customers",
       label: "Clientes unicos",
       value: formatNumber(uniqueCustomers),
+      methodology: KPI_METHODOLOGY.unique_customers,
       comparisons: buildComparisonItems("unique_customers", comparisons?.unique_customers, currency)
     }
   ];
@@ -339,12 +388,93 @@ function formatGeneratedAt(value?: string) {
   }).format(date);
 }
 
+function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
+  const generatedAt = metadata?.generated_at || metadata?.generated_at_iso;
+
+  if (generatedAt) {
+    const date = new Date(generatedAt);
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  return new Date();
+}
+
+function buildPeriodContext(period: DashboardPeriod, metadata: DashboardSummaryResponse["metadata"]): DashboardPeriodContext {
+  const contextDate = resolveContextDate(metadata);
+
+  if (period === "today") {
+    const minutesElapsed = contextDate.getHours() * 60 + contextDate.getMinutes();
+
+    return {
+      title: "Analisis de rendimiento hasta esta hora",
+      description:
+        "El analisis considera los resultados acumulados de hoy hasta la hora actual. Las comparaciones se hacen contra otros dias usando esta misma hora de corte, para evitar comparar un dia parcial contra un dia completo.",
+      note:
+        "En Hoy, las referencias se calculan hasta la misma hora actual. Por ejemplo: hoy hasta las 15:00 vs ayer hasta las 15:00.",
+      progressPercent: (minutesElapsed / (24 * 60)) * 100,
+      progressStartLabel: "00:00",
+      progressCurrentLabel: formatTime(contextDate),
+      progressEndLabel: "23:59",
+      progressCaption: `Calculado hasta: ${formatTime(contextDate)}`
+    };
+  }
+
+  if (period === "this_week") {
+    const day = contextDate.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const weekStart = new Date(contextDate);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(contextDate.getDate() + mondayOffset);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const totalMs = weekEnd.getTime() - weekStart.getTime();
+    const elapsedMs = Math.max(0, contextDate.getTime() - weekStart.getTime());
+
+    return {
+      title: "Analisis de rendimiento hasta hoy",
+      description:
+        "El analisis considera los resultados acumulados de esta semana hasta hoy. Las comparaciones usan el mismo avance semanal, por ejemplo esta semana hasta hoy contra la semana anterior hasta este mismo dia.",
+      note:
+        "En Esta semana, las referencias se calculan hasta el mismo avance semanal. Por ejemplo: esta semana hasta martes vs semana anterior hasta martes.",
+      progressPercent: totalMs > 0 ? (elapsedMs / totalMs) * 100 : 0,
+      progressStartLabel: formatWeekdayDate(weekStart),
+      progressCurrentLabel: formatWeekdayDate(contextDate),
+      progressEndLabel: formatWeekdayDate(weekEnd),
+      progressCaption: `Corte actual: ${formatWeekdayDate(contextDate)}`
+    };
+  }
+
+  const monthStart = new Date(contextDate.getFullYear(), contextDate.getMonth(), 1);
+  const monthEnd = new Date(contextDate.getFullYear(), contextDate.getMonth() + 1, 0, 23, 59, 59, 999);
+  const totalMs = monthEnd.getTime() - monthStart.getTime();
+  const elapsedMs = Math.max(0, contextDate.getTime() - monthStart.getTime());
+
+  return {
+    title: "Analisis de rendimiento hasta la fecha",
+    description:
+      "El analisis considera los resultados acumulados desde el inicio del mes hasta la fecha actual. Las comparaciones usan el mismo avance del mes, para evitar comparar un mes parcial contra un mes completo.",
+    note:
+      "En Mes en curso, las referencias se calculan hasta el mismo avance del mes. Por ejemplo: 1 al 12 de este mes vs 1 al 12 del mes anterior.",
+    progressPercent: totalMs > 0 ? (elapsedMs / totalMs) * 100 : 0,
+    progressStartLabel: formatShortDate(monthStart),
+    progressCurrentLabel: formatShortDate(contextDate),
+    progressEndLabel: formatShortDate(monthEnd),
+    progressCaption: `Corte actual: ${formatWeekdayDate(contextDate)}`
+  };
+}
+
 export function DashboardScreen() {
   const searchParams = useSearchParams();
   const tenantId = searchParams.get("tenant_id")?.trim() || "";
   const token = searchParams.get("token")?.trim() || "";
   const periodFromUrl = (searchParams.get("period")?.trim() as DashboardPeriod | null) || null;
   const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>(periodFromUrl || "month_to_date");
+  const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -416,6 +546,10 @@ export function DashboardScreen() {
     [data?.survey_summary]
   );
   const insights = useMemo(() => normalizeInsights(data?.insights ?? []), [data?.insights]);
+  const periodContext = useMemo(
+    () => buildPeriodContext(selectedPeriod, data?.metadata ?? null),
+    [data?.metadata, selectedPeriod]
+  );
 
   const maxSalesByDay = Math.max(...salesByDay.map((item) => item.value), 1);
   const maxSalesByHour = Math.max(...salesByHour.map((item) => item.value), 1);
@@ -481,14 +615,63 @@ export function DashboardScreen() {
           ))}
         </section>
 
+        <section className="dashboard-card dashboard-period-context">
+          <div className="dashboard-period-context-header">
+            <div>
+              <p className="eyebrow">Contexto del periodo</p>
+              <h2>{periodContext.title}</h2>
+            </div>
+            <span className="dashboard-period-context-caption">{periodContext.progressCaption}</span>
+          </div>
+          <div className="dashboard-period-progress">
+            <div className="dashboard-period-progress-track">
+              <div
+                className="dashboard-period-progress-fill"
+                style={{ width: `${Math.min(Math.max(periodContext.progressPercent, 0), 100)}%` }}
+              />
+            </div>
+            <div className="dashboard-period-progress-labels">
+              <span>{periodContext.progressStartLabel}</span>
+              <span>{periodContext.progressCurrentLabel}</span>
+              <span>{periodContext.progressEndLabel}</span>
+            </div>
+          </div>
+          <div className="dashboard-period-context-copy">
+            <p>{periodContext.description}</p>
+            <p>{periodContext.note}</p>
+          </div>
+        </section>
+
         <section className="dashboard-kpi-grid">
           {kpiCards.map((card) => (
             <article
               key={card.key}
               className={`dashboard-card dashboard-kpi-card ${card.tone === "primary" ? "dashboard-kpi-card-primary" : ""}`}
             >
-              <span className="dashboard-kpi-label">{card.label}</span>
+              <div className="dashboard-kpi-topline">
+                <span className="dashboard-kpi-label">{card.label}</span>
+                <button
+                  type="button"
+                  className="dashboard-kpi-info-button"
+                  aria-label={`Explicacion metodologica de ${card.label}`}
+                  aria-expanded={openMethodology[card.key] ? "true" : "false"}
+                  onClick={() =>
+                    setOpenMethodology((current) => ({
+                      ...current,
+                      [card.key]: !current[card.key]
+                    }))
+                  }
+                >
+                  i
+                </button>
+              </div>
               <strong className="dashboard-kpi-value">{card.value}</strong>
+              {openMethodology[card.key] ? (
+                <div className="dashboard-kpi-methodology">
+                  <p>{card.methodology}</p>
+                  <p>{periodContext.note}</p>
+                </div>
+              ) : null}
               {card.comparisons.length > 0 ? (
                 <div className="dashboard-kpi-comparisons">
                   {card.comparisons.map((comparison) => (
