@@ -388,6 +388,49 @@ function formatGeneratedAt(value?: string) {
   }).format(date);
 }
 
+function formatPercentage(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "0%";
+  }
+
+  return `${new Intl.NumberFormat("es-BO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(value)}%`;
+}
+
+function getSalesGoalTitle(period: DashboardPeriod) {
+  if (period === "today") {
+    return "Objetivo de ventas de hoy";
+  }
+
+  if (period === "this_week") {
+    return "Objetivo de ventas semanal";
+  }
+
+  return "Objetivo de ventas mensual";
+}
+
+function getSalesGoalToneClassName(achievementPercent: number | null | undefined) {
+  if (achievementPercent === null || achievementPercent === undefined || !Number.isFinite(achievementPercent)) {
+    return "dashboard-sales-goal-fill--danger";
+  }
+
+  if (achievementPercent >= 100) {
+    return "dashboard-sales-goal-fill--success";
+  }
+
+  if (achievementPercent >= 70) {
+    return "dashboard-sales-goal-fill--near";
+  }
+
+  if (achievementPercent >= 40) {
+    return "dashboard-sales-goal-fill--warning";
+  }
+
+  return "dashboard-sales-goal-fill--danger";
+}
+
 function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
   const generatedAt = metadata?.generated_at || metadata?.generated_at_iso;
 
@@ -550,7 +593,23 @@ export function DashboardScreen() {
     () => buildPeriodContext(selectedPeriod, data?.metadata ?? null),
     [data?.metadata, selectedPeriod]
   );
+  const salesGoal = data?.sales_goal ?? null;
   const clampedProgressPercent = Math.min(Math.max(periodContext.progressPercent, 0), 100);
+  const salesGoalTarget = toNumber(salesGoal?.target_amount);
+  const salesGoalCurrent = toNumber(salesGoal?.current_amount) ?? 0;
+  const salesGoalRemaining = toNumber(salesGoal?.remaining_amount);
+  const salesGoalAchievement = toNumber(salesGoal?.achievement_percent);
+  const salesGoalIsConfigured =
+    Boolean(salesGoal) && salesGoal?.status !== "not_configured" && salesGoalTarget !== undefined && salesGoalTarget > 0;
+  const salesGoalProgressPercent =
+    salesGoalAchievement !== undefined && Number.isFinite(salesGoalAchievement)
+      ? Math.min(Math.max(salesGoalAchievement, 0), 100)
+      : salesGoalTarget && salesGoalTarget > 0
+        ? Math.min(Math.max((salesGoalCurrent / salesGoalTarget) * 100, 0), 100)
+        : 0;
+  const salesGoalOverTarget =
+    salesGoalTarget !== undefined && salesGoalCurrent > salesGoalTarget ? salesGoalCurrent - salesGoalTarget : 0;
+  const salesGoalToneClassName = getSalesGoalToneClassName(salesGoalAchievement);
   const currentProgressLabelClassName = [
     "dashboard-period-progress-label-current",
     clampedProgressPercent <= 10 ? "dashboard-period-progress-label-current--start" : "",
@@ -725,6 +784,56 @@ export function DashboardScreen() {
               ) : null}
             </article>
           ))}
+        </section>
+
+        <section className="dashboard-card dashboard-sales-goal">
+          {salesGoalIsConfigured && salesGoalTarget !== undefined ? (
+            <>
+              <div className="dashboard-sales-goal-header">
+                <p className="eyebrow">Meta comercial</p>
+                <h2 className="dashboard-sales-goal-title">{getSalesGoalTitle(selectedPeriod)}</h2>
+              </div>
+              <div className="dashboard-sales-goal-body">
+                <div className="dashboard-sales-goal-main">
+                  <strong>{`${formatCurrency(salesGoalCurrent, currency)} vendidos de ${formatCurrency(salesGoalTarget, currency)}`}</strong>
+                  <span>{`${formatPercentage(salesGoalAchievement)} cumplido`}</span>
+                </div>
+                <div className="dashboard-sales-goal-progress">
+                  <div className="dashboard-sales-goal-track">
+                    <div
+                      className={`dashboard-sales-goal-fill ${salesGoalToneClassName}`}
+                      style={{ width: `${salesGoalProgressPercent}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="dashboard-sales-goal-meta">
+                  {salesGoal?.status === "achieved" ? (
+                    <>
+                      <strong>Meta alcanzada</strong>
+                      {salesGoalOverTarget > 0 ? (
+                        <span>{`${formatCurrency(salesGoalOverTarget, currency)} por encima del objetivo`}</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span>
+                      {salesGoalRemaining !== undefined && salesGoalRemaining !== null
+                        ? `Faltan ${formatCurrency(salesGoalRemaining, currency)} para llegar a la meta`
+                        : "Meta en seguimiento"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="dashboard-sales-goal-empty">
+              <p className="eyebrow">Meta comercial</p>
+              <h2 className="dashboard-sales-goal-title">Objetivo de ventas no configurado</h2>
+              <p>
+                Configura una meta de ventas desde el panel admin para comparar el rendimiento de este período
+                contra tu objetivo.
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="dashboard-grid">

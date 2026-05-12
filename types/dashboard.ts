@@ -118,6 +118,15 @@ export type DashboardMetadata = {
   [key: string]: unknown;
 };
 
+export type DashboardSalesGoal = {
+  period: "today" | "this_week" | "month_to_date" | string;
+  target_amount: number | null;
+  current_amount: number;
+  remaining_amount: number | null;
+  achievement_percent: number | null;
+  status: "not_configured" | "behind" | "achieved" | string;
+};
+
 export type DashboardInsight =
   | string
   | {
@@ -133,6 +142,7 @@ export type DashboardSummaryResponse = {
   period: DashboardPeriod;
   kpis: DashboardKpis;
   kpi_comparisons?: DashboardKpiComparisonMap | null;
+  sales_goal?: DashboardSalesGoal | null;
   sales_by_day: DashboardSeriesPoint[];
   sales_by_hour: DashboardSeriesPoint[];
   top_products: DashboardTopProduct[];
