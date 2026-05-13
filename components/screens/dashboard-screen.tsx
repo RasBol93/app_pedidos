@@ -14,11 +14,13 @@ import type {
   DashboardKpiComparison,
   DashboardKpiComparisonMap,
   DashboardKpis,
+  OrderItemCountDistribution,
   DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSummaryResponse,
   DashboardTopCustomer,
-  DashboardTopProduct
+  DashboardTopProduct,
+  TopOrderCombination
 } from "@/types/dashboard";
 
 type DashboardKpiCard = {
@@ -64,6 +66,30 @@ type DashboardHourlyChartRow = {
   orders: number;
 };
 
+type DashboardCategorySlice = {
+  id: string;
+  label: string;
+  sales: number;
+  orders: number;
+  percent: number;
+  color: string;
+};
+
+type DashboardOrderDistributionSlice = {
+  id: string;
+  label: string;
+  orders: number;
+  percent: number;
+  color: string;
+};
+
+type DashboardCombinationRow = {
+  id: string;
+  label: string;
+  orders: number;
+  percent: number;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
@@ -82,6 +108,7 @@ const KPI_METHODOLOGY: Record<DashboardKpiCard["key"], string> = {
 };
 
 const WEEK_DAY_LABELS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] as const;
+const PIE_COLORS = ["#1d4ed8", "#f59e0b", "#60a5fa", "#94a3b8", "#cbd5e1"] as const;
 
 function formatCurrency(amount: number, currency = "BOB") {
   return new Intl.NumberFormat("es-BO", {
@@ -138,6 +165,10 @@ function formatUnitsLabel(value: number) {
   return `${formatNumber(value)} ${value === 1 ? "unidad" : "unidades"}`;
 }
 
+function formatItemCountLabel(value: number) {
+  return `${formatNumber(value)} ${value === 1 ? "item" : "items"}`;
+}
+
 function toNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -173,6 +204,25 @@ function getRecordText(record: Record<string, unknown>, keys: string[]) {
   }
 
   return undefined;
+}
+
+function buildPieChartBackground(slices: Array<{ percent: number; color: string }>) {
+  const totalPercent = slices.reduce((sum, slice) => sum + Math.max(slice.percent, 0), 0);
+
+  if (totalPercent <= 0 || slices.length === 0) {
+    return "conic-gradient(#e2e8f0 0% 100%)";
+  }
+
+  let currentStart = 0;
+  const segments = slices.map((slice) => {
+    const share = (Math.max(slice.percent, 0) / totalPercent) * 100;
+    const nextEnd = currentStart + share;
+    const segment = `${slice.color} ${currentStart}% ${nextEnd}%`;
+    currentStart = nextEnd;
+    return segment;
+  });
+
+  return `conic-gradient(${segments.join(", ")})`;
 }
 
 function getTenantName(tenant: DashboardSummaryResponse["tenant"]) {
@@ -447,17 +497,76 @@ function normalizeTopProducts(items: DashboardTopProduct[]) {
   });
 }
 
-function normalizeCategories(items: DashboardCategory[]) {
-  return items.map((item, index) => {
+function normalizeCategories(items: DashboardCategory[]): DashboardCategorySlice[] {
+  const normalized = items.map((item, index) => {
     const record = item as Record<string, unknown>;
     return {
       id: getRecordText(record, ["name", "category", "label"]) || `category-${index + 1}`,
       name: getRecordText(record, ["name", "category", "label"]) || "Categoria",
-      value:
-        getRecordNumber(record, ["revenue", "sales", "total", "amount", "quantity", "units", "orders", "count"]) ??
-        0
+      sales: getRecordNumber(record, ["sales", "revenue", "total", "amount"]) ?? 0,
+      orders: getRecordNumber(record, ["orders", "count"]) ?? 0,
+      percent: getRecordNumber(record, ["percent"])
     };
   });
+
+  const totalSales = normalized.reduce((sum, item) => sum + item.sales, 0);
+
+  return normalized
+    .map((item, index) => ({
+      id: item.id,
+      label: item.name,
+      sales: item.sales,
+      orders: item.orders,
+      percent:
+        item.percent !== undefined
+          ? item.percent
+          : totalSales > 0
+            ? (item.sales / totalSales) * 100
+            : 0,
+      color: PIE_COLORS[index % PIE_COLORS.length]
+    }))
+    .sort((left, right) => right.sales - left.sales);
+}
+
+function normalizeOrderItemCountDistribution(
+  items: OrderItemCountDistribution[]
+): DashboardOrderDistributionSlice[] {
+  return items
+    .map((item, index) => {
+      const record = item as Record<string, unknown>;
+      const itemCount = getRecordNumber(record, ["item_count"]) ?? 0;
+
+      return {
+        id: `order-items-${index + 1}-${itemCount}`,
+        label: formatItemCountLabel(itemCount),
+        orders: getRecordNumber(record, ["orders_count", "orders", "count"]) ?? 0,
+        percent: getRecordNumber(record, ["percent"]) ?? 0,
+        color: PIE_COLORS[index % PIE_COLORS.length]
+      };
+    })
+    .sort((left, right) => {
+      const leftCount = toNumber(left.label.split(" ")[0]) ?? 0;
+      const rightCount = toNumber(right.label.split(" ")[0]) ?? 0;
+      return leftCount - rightCount;
+    });
+}
+
+function normalizeTopOrderCombinations(items: TopOrderCombination[]): DashboardCombinationRow[] {
+  return items
+    .map((item, index) => {
+      const record = item as Record<string, unknown>;
+      const products = Array.isArray(record.products)
+        ? record.products.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        : [];
+
+      return {
+        id: `${getRecordText(record, ["label"]) || products.join(" + ") || `combo-${index + 1}`}-${index + 1}`,
+        label: getRecordText(record, ["label"]) || products.join(" + ") || "Combinacion",
+        orders: getRecordNumber(record, ["orders_count", "orders", "count"]) ?? 0,
+        percent: getRecordNumber(record, ["percent"]) ?? 0
+      };
+    })
+    .sort((left, right) => right.orders - left.orders);
 }
 
 function normalizeTopCustomers(items: DashboardTopCustomer[]) {
@@ -655,6 +764,9 @@ export function DashboardScreen() {
   const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
   const [isPeriodChartInfoOpen, setIsPeriodChartInfoOpen] = useState(false);
   const [isHourlyAnalysisInfoOpen, setIsHourlyAnalysisInfoOpen] = useState(false);
+  const [isCategoryInfoOpen, setIsCategoryInfoOpen] = useState(false);
+  const [isOrderBehaviorInfoOpen, setIsOrderBehaviorInfoOpen] = useState(false);
+  const [isCombinationsInfoOpen, setIsCombinationsInfoOpen] = useState(false);
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -717,6 +829,14 @@ export function DashboardScreen() {
   const salesByHour = useMemo(() => normalizeSalesByHourChart(data?.sales_by_hour ?? []), [data?.sales_by_hour]);
   const topProducts = useMemo(() => normalizeTopProducts(data?.top_products ?? []), [data?.top_products]);
   const categories = useMemo(() => normalizeCategories(data?.categories ?? []), [data?.categories]);
+  const orderItemDistribution = useMemo(
+    () => normalizeOrderItemCountDistribution(data?.order_item_count_distribution ?? []),
+    [data?.order_item_count_distribution]
+  );
+  const topOrderCombinations = useMemo(
+    () => normalizeTopOrderCombinations(data?.top_order_combinations ?? []),
+    [data?.top_order_combinations]
+  );
   const topCustomers = useMemo(
     () =>
       normalizeTopCustomers(
@@ -766,8 +886,9 @@ export function DashboardScreen() {
 
   const maxPeriodChartSales = Math.max(...periodChartRows.map((item) => item.sales), 1);
   const maxSalesByHour = Math.max(...salesByHour.map((item) => item.sales), 1);
-  const maxCategoryValue = Math.max(...categories.map((item) => item.value), 1);
   const maxSurveyValue = Math.max(...surveyHistogram.map((item) => item.value), 1);
+  const categoryPieBackground = buildPieChartBackground(categories);
+  const orderBehaviorPieBackground = buildPieChartBackground(orderItemDistribution);
 
   if (isLoading) {
     return (
@@ -1115,26 +1236,154 @@ export function DashboardScreen() {
             )}
           </article>
 
-          <article className="dashboard-card dashboard-panel">
-            <div className="dashboard-panel-heading">
-              <p className="eyebrow">Categorias</p>
-              <h2>Participacion por rubro</h2>
+          <article className="dashboard-card dashboard-panel dashboard-pie-card">
+            <div className="dashboard-pie-header">
+              <div>
+                <p className="eyebrow">Categorias</p>
+                <h2 className="dashboard-pie-title">Participacion por rubro</h2>
+              </div>
+              <button
+                type="button"
+                className="dashboard-pie-info-button"
+                aria-label="Explicacion de participacion por rubro"
+                aria-expanded={isCategoryInfoOpen ? "true" : "false"}
+                onClick={() => setIsCategoryInfoOpen((current) => !current)}
+              >
+                i
+              </button>
             </div>
+            {isCategoryInfoOpen ? (
+              <div className="dashboard-pie-info">
+                <p>
+                  Este grafico muestra que porcentaje de las ventas pagadas corresponde a cada rubro o
+                  categoria. El calculo usa el monto vendido en Bs por categoria sobre el total vendido
+                  del periodo. Tambien se muestra la cantidad de pedidos asociados a cada rubro.
+                </p>
+              </div>
+            ) : null}
             {categories.length === 0 ? (
-              <p className="dashboard-empty-copy">Aun no hay categorias con actividad.</p>
+              <p className="dashboard-empty-copy">Aun no hay categorias con actividad en este periodo.</p>
             ) : (
-              <div className="dashboard-category-list">
-                {categories.map((item) => (
-                  <div key={item.id} className="dashboard-category-row">
-                    <div className="dashboard-category-copy">
-                      <strong>{item.name}</strong>
-                      <span>{formatNumber(item.value)}</span>
-                    </div>
-                    <div className="dashboard-category-track">
-                      <div
-                        className="dashboard-category-fill"
-                        style={{ width: `${Math.max((item.value / maxCategoryValue) * 100, 6)}%` }}
+              <div className="dashboard-pie-layout">
+                <div
+                  className="dashboard-pie-chart"
+                  style={{ backgroundImage: categoryPieBackground }}
+                  aria-label="Participacion por rubro"
+                />
+                <div className="dashboard-pie-legend">
+                  {categories.map((item) => (
+                    <div key={item.id} className="dashboard-pie-legend-item">
+                      <span
+                        className="dashboard-pie-swatch"
+                        style={{ backgroundColor: item.color }}
+                        aria-hidden="true"
                       />
+                      <div className="dashboard-pie-label">
+                        <strong>{item.label}</strong>
+                        <span className="dashboard-pie-meta">
+                          {`${formatPercentage(item.percent)} - ${formatCurrency(item.sales, currency)} - ${formatOrdersLabel(item.orders)}`}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </article>
+
+          <article className="dashboard-card dashboard-panel dashboard-pie-card">
+            <div className="dashboard-pie-header">
+              <div>
+                <p className="eyebrow">Pedidos</p>
+                <h2 className="dashboard-pie-title">Comportamiento de pedidos</h2>
+              </div>
+              <button
+                type="button"
+                className="dashboard-pie-info-button"
+                aria-label="Explicacion de comportamiento de pedidos"
+                aria-expanded={isOrderBehaviorInfoOpen ? "true" : "false"}
+                onClick={() => setIsOrderBehaviorInfoOpen((current) => !current)}
+              >
+                i
+              </button>
+            </div>
+            {isOrderBehaviorInfoOpen ? (
+              <div className="dashboard-pie-info">
+                <p>
+                  Este grafico muestra como se distribuyen los pedidos pagados segun la cantidad de
+                  items incluidos en cada pedido. Por ejemplo, un pedido con una hamburguesa y unas
+                  papas cuenta como 2 items. El porcentaje se calcula sobre el total de pedidos pagados
+                  del periodo.
+                </p>
+              </div>
+            ) : null}
+            {orderItemDistribution.length === 0 ? (
+              <p className="dashboard-empty-copy">Aun no hay pedidos suficientes para analizar este periodo.</p>
+            ) : (
+              <div className="dashboard-pie-layout">
+                <div
+                  className="dashboard-pie-chart"
+                  style={{ backgroundImage: orderBehaviorPieBackground }}
+                  aria-label="Comportamiento de pedidos"
+                />
+                <div className="dashboard-pie-legend">
+                  {orderItemDistribution.map((item) => (
+                    <div key={item.id} className="dashboard-pie-legend-item">
+                      <span
+                        className="dashboard-pie-swatch"
+                        style={{ backgroundColor: item.color }}
+                        aria-hidden="true"
+                      />
+                      <div className="dashboard-pie-label">
+                        <strong>{item.label}</strong>
+                        <span className="dashboard-pie-meta">
+                          {`${formatPercentage(item.percent)} - ${formatOrdersLabel(item.orders)}`}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </article>
+
+          <article className="dashboard-card dashboard-panel dashboard-combinations">
+            <div className="dashboard-pie-header">
+              <div>
+                <p className="eyebrow">Combinaciones</p>
+                <h2 className="dashboard-pie-title">Combinaciones mas pedidas</h2>
+              </div>
+              <button
+                type="button"
+                className="dashboard-pie-info-button"
+                aria-label="Explicacion de combinaciones mas pedidas"
+                aria-expanded={isCombinationsInfoOpen ? "true" : "false"}
+                onClick={() => setIsCombinationsInfoOpen((current) => !current)}
+              >
+                i
+              </button>
+            </div>
+            {isCombinationsInfoOpen ? (
+              <div className="dashboard-pie-info">
+                <p>
+                  Esta lista muestra las combinaciones de productos que mas se repiten en pedidos
+                  pagados. Si dos pedidos tienen los mismos productos en distinto orden, se consideran
+                  la misma combinacion.
+                </p>
+              </div>
+            ) : null}
+            {topOrderCombinations.length === 0 ? (
+              <p className="dashboard-empty-copy">Todavia no hay combinaciones repetidas en este periodo.</p>
+            ) : (
+              <div className="dashboard-combination-list">
+                {topOrderCombinations.slice(0, 5).map((item, index) => (
+                  <div key={item.id} className="dashboard-combination-item">
+                    <span className="dashboard-combination-rank">{index + 1}.</span>
+                    <div className="dashboard-combination-main">
+                      <strong className="dashboard-combination-label">{item.label}</strong>
+                      <span className="dashboard-combination-meta">
+                        {`${formatOrdersLabel(item.orders)} - ${formatPercentage(item.percent)}`}
+                      </span>
                     </div>
                   </div>
                 ))}

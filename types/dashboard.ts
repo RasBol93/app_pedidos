@@ -69,17 +69,25 @@ export type DashboardTopProduct = {
 };
 
 export type DashboardCategory = {
-  name?: string;
-  category?: string;
-  label?: string;
-  revenue?: number | string;
-  sales?: number | string;
-  total?: number | string;
-  amount?: number | string;
-  quantity?: number | string;
-  units?: number | string;
-  count?: number | string;
-  orders?: number | string;
+  name: string;
+  sales: number;
+  orders: number;
+  percent?: number;
+  [key: string]: unknown;
+};
+
+export type OrderItemCountDistribution = {
+  item_count: number;
+  orders_count: number;
+  percent: number;
+  [key: string]: unknown;
+};
+
+export type TopOrderCombination = {
+  products: string[];
+  label: string;
+  orders_count: number;
+  percent: number;
   [key: string]: unknown;
 };
 
@@ -161,6 +169,8 @@ export type DashboardSummaryResponse = {
   sales_by_hour: DashboardSeriesPoint[];
   top_products: DashboardTopProduct[];
   categories: DashboardCategory[];
+  order_item_count_distribution?: OrderItemCountDistribution[];
+  top_order_combinations?: TopOrderCombination[];
   customers_summary: DashboardCustomersSummary | null;
   survey_summary: DashboardSurveySummary | null;
   insights: DashboardInsight[];
