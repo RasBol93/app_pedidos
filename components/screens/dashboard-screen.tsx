@@ -87,6 +87,7 @@ type DashboardCombinationRow = {
   id: string;
   label: string;
   orders: number;
+  sales?: number;
   percent: number;
 };
 
@@ -559,10 +560,11 @@ function normalizeTopOrderCombinations(items: TopOrderCombination[]): DashboardC
         ? record.products.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
         : [];
 
-      return {
+        return {
         id: `${getRecordText(record, ["label"]) || products.join(" + ") || `combo-${index + 1}`}-${index + 1}`,
         label: getRecordText(record, ["label"]) || products.join(" + ") || "Combinacion",
         orders: getRecordNumber(record, ["orders_count", "orders", "count"]) ?? 0,
+        sales: getRecordNumber(record, ["sales", "revenue", "total", "amount"]),
         percent: getRecordNumber(record, ["percent"]) ?? 0
       };
     })
@@ -1366,14 +1368,16 @@ export function DashboardScreen() {
             {isCombinationsInfoOpen ? (
               <div className="dashboard-pie-info">
                 <p>
-                  Esta lista muestra las combinaciones de productos que mas se repiten en pedidos
-                  pagados. Si dos pedidos tienen los mismos productos en distinto orden, se consideran
-                  la misma combinacion.
+                  Esta lista muestra las combinaciones reales de productos que se repiten en pedidos
+                  pagados. Solo se consideran pedidos con mas de un producto distinto. Si un pedido
+                  tiene dos unidades del mismo producto pero ningun otro producto, no se considera
+                  combinacion. El monto en Bs representa el valor generado por los pedidos que contienen
+                  esa combinacion.
                 </p>
               </div>
             ) : null}
             {topOrderCombinations.length === 0 ? (
-              <p className="dashboard-empty-copy">Todavia no hay combinaciones repetidas en este periodo.</p>
+              <p className="dashboard-empty-copy">Todavia no hay combinaciones de productos repetidas en este periodo.</p>
             ) : (
               <div className="dashboard-combination-list">
                 {topOrderCombinations.slice(0, 5).map((item, index) => (
@@ -1382,7 +1386,7 @@ export function DashboardScreen() {
                     <div className="dashboard-combination-main">
                       <strong className="dashboard-combination-label">{item.label}</strong>
                       <span className="dashboard-combination-meta">
-                        {`${formatOrdersLabel(item.orders)} - ${formatPercentage(item.percent)}`}
+                        {`${formatOrdersLabel(item.orders)}${item.sales !== undefined ? ` - ${formatCurrency(item.sales, currency)} generados` : ""} - ${formatPercentage(item.percent)}`}
                       </span>
                     </div>
                   </div>

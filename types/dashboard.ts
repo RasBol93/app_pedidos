@@ -87,6 +87,7 @@ export type TopOrderCombination = {
   products: string[];
   label: string;
   orders_count: number;
+  sales?: number;
   percent: number;
   [key: string]: unknown;
 };
