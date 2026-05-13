@@ -92,6 +92,24 @@ export type TopOrderCombination = {
   [key: string]: unknown;
 };
 
+export type CustomerOrderTypeDistribution = {
+  type: "new" | "returning" | string;
+  label: string;
+  orders_count: number;
+  percent: number;
+  [key: string]: unknown;
+};
+
+export type TopRecurrentCustomer = {
+  name: string;
+  contact?: string;
+  orders_count: number;
+  total_spent: number;
+  last_purchase_at?: string;
+  products_text?: string;
+  [key: string]: unknown;
+};
+
 export type DashboardTopCustomer = {
   name?: string;
   customer_name?: string;
@@ -172,6 +190,8 @@ export type DashboardSummaryResponse = {
   categories: DashboardCategory[];
   order_item_count_distribution?: OrderItemCountDistribution[];
   top_order_combinations?: TopOrderCombination[];
+  customer_order_type_distribution?: CustomerOrderTypeDistribution[];
+  top_recurrent_customers?: TopRecurrentCustomer[];
   customers_summary: DashboardCustomersSummary | null;
   survey_summary: DashboardSurveySummary | null;
   insights: DashboardInsight[];

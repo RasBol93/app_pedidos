@@ -9,6 +9,7 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { PageShell } from "@/components/shared/page-shell";
 import { fetchDashboardSummary } from "@/services/dashboard-api";
 import type {
+  CustomerOrderTypeDistribution,
   DashboardCategory,
   DashboardInsight,
   DashboardKpiComparison,
@@ -18,9 +19,9 @@ import type {
   DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSummaryResponse,
-  DashboardTopCustomer,
   DashboardTopProduct,
-  TopOrderCombination
+  TopOrderCombination,
+  TopRecurrentCustomer
 } from "@/types/dashboard";
 
 type DashboardKpiCard = {
@@ -91,6 +92,22 @@ type DashboardCombinationRow = {
   percent: number;
 };
 
+type DashboardCustomerOrderSlice = {
+  id: string;
+  label: string;
+  orders: number;
+  percent: number;
+  color: string;
+};
+
+type DashboardRecurrentCustomerRow = {
+  id: string;
+  name: string;
+  orders: number;
+  totalSpent: number;
+  lastPurchaseLabel?: string;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
@@ -110,6 +127,10 @@ const KPI_METHODOLOGY: Record<DashboardKpiCard["key"], string> = {
 
 const WEEK_DAY_LABELS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] as const;
 const PIE_COLORS = ["#1d4ed8", "#f59e0b", "#60a5fa", "#94a3b8", "#cbd5e1"] as const;
+const CUSTOMER_ORDER_COLORS: Record<string, string> = {
+  new: "#60a5fa",
+  returning: "#1d4ed8"
+};
 
 function formatCurrency(amount: number, currency = "BOB") {
   return new Intl.NumberFormat("es-BO", {
@@ -145,6 +166,24 @@ function formatTime(value: Date) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(value);
+}
+
+function formatSimpleDate(value?: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("es-BO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(date);
 }
 
 function formatCompactNumber(value: number) {
@@ -571,15 +610,34 @@ function normalizeTopOrderCombinations(items: TopOrderCombination[]): DashboardC
     .sort((left, right) => right.orders - left.orders);
 }
 
-function normalizeTopCustomers(items: DashboardTopCustomer[]) {
+function normalizeCustomerOrderTypeDistribution(
+  items: CustomerOrderTypeDistribution[]
+): DashboardCustomerOrderSlice[] {
   return items.map((item, index) => {
     const record = item as Record<string, unknown>;
     return {
-      id: getRecordText(record, ["phone", "customer_phone", "name", "customer_name"]) || `customer-${index + 1}`,
-      name: getRecordText(record, ["name", "customer_name", "phone", "customer_phone"]) || "Cliente",
-      total: getRecordNumber(record, ["total", "total_spent", "revenue", "orders", "count"]) ?? 0
+      id: `${getRecordText(record, ["type", "label"]) || `customer-order-${index + 1}`}-${index + 1}`,
+      label: getRecordText(record, ["label"]) || "Clientes",
+      orders: getRecordNumber(record, ["orders_count", "orders", "count"]) ?? 0,
+      percent: getRecordNumber(record, ["percent"]) ?? 0,
+      color: CUSTOMER_ORDER_COLORS[getRecordText(record, ["type"]) || ""] || PIE_COLORS[index % PIE_COLORS.length]
     };
   });
+}
+
+function normalizeTopRecurrentCustomers(items: TopRecurrentCustomer[]): DashboardRecurrentCustomerRow[] {
+  return items
+    .map((item, index) => {
+      const record = item as Record<string, unknown>;
+      return {
+        id: `${getRecordText(record, ["contact", "name"]) || `recurrent-customer-${index + 1}`}-${index + 1}`,
+        name: getRecordText(record, ["name", "contact"]) || "Cliente recurrente",
+        orders: getRecordNumber(record, ["orders_count", "orders", "count"]) ?? 0,
+        totalSpent: getRecordNumber(record, ["total_spent", "total", "sales", "revenue", "amount"]) ?? 0,
+        lastPurchaseLabel: formatSimpleDate(getRecordText(record, ["last_purchase_at"]))
+      };
+    })
+    .sort((left, right) => right.orders - left.orders);
 }
 
 function normalizeSurveyHistogram(survey: DashboardSummaryResponse["survey_summary"]) {
@@ -769,6 +827,7 @@ export function DashboardScreen() {
   const [isCategoryInfoOpen, setIsCategoryInfoOpen] = useState(false);
   const [isOrderBehaviorInfoOpen, setIsOrderBehaviorInfoOpen] = useState(false);
   const [isCombinationsInfoOpen, setIsCombinationsInfoOpen] = useState(false);
+  const [isCustomersInfoOpen, setIsCustomersInfoOpen] = useState(false);
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -839,12 +898,13 @@ export function DashboardScreen() {
     () => normalizeTopOrderCombinations(data?.top_order_combinations ?? []),
     [data?.top_order_combinations]
   );
-  const topCustomers = useMemo(
-    () =>
-      normalizeTopCustomers(
-        data?.customers_summary?.top_customers ?? data?.customers_summary?.customers ?? []
-      ),
-    [data?.customers_summary]
+  const customerOrderDistribution = useMemo(
+    () => normalizeCustomerOrderTypeDistribution(data?.customer_order_type_distribution ?? []),
+    [data?.customer_order_type_distribution]
+  );
+  const topRecurrentCustomers = useMemo(
+    () => normalizeTopRecurrentCustomers(data?.top_recurrent_customers ?? []),
+    [data?.top_recurrent_customers]
   );
   const surveyHistogram = useMemo(
     () => normalizeSurveyHistogram(data?.survey_summary ?? null),
@@ -891,6 +951,7 @@ export function DashboardScreen() {
   const maxSurveyValue = Math.max(...surveyHistogram.map((item) => item.value), 1);
   const categoryPieBackground = buildPieChartBackground(categories);
   const orderBehaviorPieBackground = buildPieChartBackground(orderItemDistribution);
+  const customerOrderPieBackground = buildPieChartBackground(customerOrderDistribution);
 
   if (isLoading) {
     return (
@@ -1393,48 +1454,85 @@ export function DashboardScreen() {
             )}
           </article>
 
-          <article className="dashboard-card dashboard-panel">
-            <div className="dashboard-panel-heading">
-              <p className="eyebrow">Clientes</p>
-              <h2>Actividad de clientes</h2>
-            </div>
-            <div className="dashboard-stat-stack">
-              <div className="dashboard-mini-stat">
-                <span>Total clientes</span>
-                <strong>
-                  {formatNumber(
-                    toNumber(
-                      data.customers_summary?.total_customers ?? data.customers_summary?.unique_customers
-                    ) ?? 0
-                  )}
-                </strong>
+          <article className="dashboard-card dashboard-panel dashboard-customers-card">
+            <div className="dashboard-customers-header">
+              <div>
+                <p className="eyebrow">Clientes</p>
+                <h2 className="dashboard-customers-title">Clientes</h2>
               </div>
-              <div className="dashboard-mini-stat">
-                <span>Clientes recurrentes</span>
-                <strong>
-                  {formatNumber(
-                    toNumber(
-                      data.customers_summary?.repeat_customers ?? data.customers_summary?.returning_customers
-                    ) ?? 0
-                  )}
-                </strong>
-              </div>
+              <button
+                type="button"
+                className="dashboard-customers-info-button"
+                aria-label="Explicacion del bloque de clientes"
+                aria-expanded={isCustomersInfoOpen ? "true" : "false"}
+                onClick={() => setIsCustomersInfoOpen((current) => !current)}
+              >
+                i
+              </button>
             </div>
-            {topCustomers.length > 0 ? (
-              <div className="dashboard-ranked-list">
-                {topCustomers.slice(0, 5).map((item, index) => (
-                  <div key={item.id} className="dashboard-ranked-row">
-                    <span className="dashboard-rank-badge">{index + 1}</span>
-                    <div className="dashboard-ranked-copy">
-                      <strong>{item.name}</strong>
+            {isCustomersInfoOpen ? (
+              <div className="dashboard-customers-info">
+                <p>
+                  Este bloque clasifica los pedidos pagados del periodo segun el historial del cliente.
+                  Un pedido cuenta como recurrente si el contacto ya tenia al menos un pedido pagado
+                  anterior. Un pedido cuenta como nuevo si es el primer pedido pagado conocido de ese
+                  contacto. Los contactos vacios no se consideran en este calculo.
+                </p>
+              </div>
+            ) : null}
+            <div className="dashboard-customers-layout">
+              <div className="dashboard-customers-pie-block">
+                <h3 className="dashboard-customers-section-title">Pedidos nuevos vs recurrentes</h3>
+                {customerOrderDistribution.length === 0 ? (
+                  <p className="dashboard-empty-copy">
+                    No hay suficientes datos de clientes para clasificar pedidos nuevos y recurrentes.
+                  </p>
+                ) : (
+                  <>
+                    <div
+                      className="dashboard-customers-pie"
+                      style={{ backgroundImage: customerOrderPieBackground }}
+                      aria-label="Distribucion de pedidos nuevos y recurrentes"
+                    />
+                    <div className="dashboard-customers-legend">
+                      {customerOrderDistribution.map((item) => (
+                        <div key={item.id} className="dashboard-pie-legend-item">
+                          <span
+                            className="dashboard-pie-swatch"
+                            style={{ backgroundColor: item.color }}
+                            aria-hidden="true"
+                          />
+                          <div className="dashboard-pie-label">
+                            <strong>{item.label}</strong>
+                            <span className="dashboard-pie-meta">
+                              {`${formatPercentage(item.percent)} - ${formatOrdersLabel(item.orders)}`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <strong className="dashboard-ranked-value">{formatNumber(item.total)}</strong>
-                  </div>
-                ))}
+                  </>
+                )}
               </div>
-            ) : (
-              <p className="dashboard-empty-copy">Todavia no hay top customers disponibles.</p>
-            )}
+
+              <div className="dashboard-customer-repeat-block">
+                <h3 className="dashboard-customers-section-title">Top 3 clientes recurrentes</h3>
+                {topRecurrentCustomers.length === 0 ? (
+                  <p className="dashboard-empty-copy">Todavia no hay clientes recurrentes en este periodo.</p>
+                ) : (
+                  <div className="dashboard-customer-repeat-list">
+                    {topRecurrentCustomers.slice(0, 3).map((item) => (
+                      <div key={item.id} className="dashboard-customer-repeat-item">
+                        <strong className="dashboard-customer-repeat-name">{item.name}</strong>
+                        <span className="dashboard-customer-repeat-meta">
+                          {`${formatOrdersLabel(item.orders)} - ${formatCurrency(item.totalSpent, currency)}${item.lastPurchaseLabel ? ` - Ultima compra: ${item.lastPurchaseLabel}` : ""}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </article>
 
           <article className="dashboard-card dashboard-panel">

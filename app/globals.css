@@ -2756,6 +2756,115 @@ img {
   min-width: 0;
 }
 
+.dashboard-customers-card {
+  gap: 14px;
+}
+
+.dashboard-customers-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-customers-title,
+.dashboard-customers-section-title {
+  margin: 0;
+  color: #0f172a;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.dashboard-customers-title {
+  font-size: 1.1rem;
+  font-weight: 780;
+}
+
+.dashboard-customers-section-title {
+  font-size: 0.92rem;
+  font-weight: 760;
+}
+
+.dashboard-customers-info-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #f8fafc;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dashboard-customers-info {
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fbff;
+  border: 1px solid rgba(191, 219, 254, 0.55);
+}
+
+.dashboard-customers-info p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.dashboard-customers-layout,
+.dashboard-customers-pie-block,
+.dashboard-customer-repeat-block,
+.dashboard-customers-legend,
+.dashboard-customer-repeat-list,
+.dashboard-customer-repeat-item {
+  display: grid;
+}
+
+.dashboard-customers-layout,
+.dashboard-customers-pie-block,
+.dashboard-customer-repeat-block,
+.dashboard-customer-repeat-list {
+  gap: 14px;
+}
+
+.dashboard-customers-pie {
+  width: min(100%, 210px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 999px;
+  background-color: #e2e8f0;
+  box-shadow:
+    inset 0 0 0 14px #ffffff,
+    0 16px 32px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-customers-legend {
+  gap: 10px;
+}
+
+.dashboard-customer-repeat-item {
+  gap: 4px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.dashboard-customer-repeat-name {
+  color: #172554;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-customer-repeat-meta {
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .dashboard-category-row {
   gap: 8px;
 }
@@ -2845,6 +2954,11 @@ img {
   .dashboard-pie-layout {
     grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
     align-items: center;
+  }
+
+  .dashboard-customers-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 
   .dashboard-period-context-header {
