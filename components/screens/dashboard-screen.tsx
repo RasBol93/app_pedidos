@@ -129,7 +129,9 @@ const WEEK_DAY_LABELS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] as con
 const PIE_COLORS = ["#1d4ed8", "#f59e0b", "#60a5fa", "#94a3b8", "#cbd5e1"] as const;
 const CUSTOMER_ORDER_COLORS: Record<string, string> = {
   new: "#60a5fa",
-  returning: "#1d4ed8"
+  returning: "#1d4ed8",
+  unidentified: "#f59e0b",
+  unknown: "#f59e0b"
 };
 
 function formatCurrency(amount: number, currency = "BOB") {
@@ -615,12 +617,18 @@ function normalizeCustomerOrderTypeDistribution(
 ): DashboardCustomerOrderSlice[] {
   return items.map((item, index) => {
     const record = item as Record<string, unknown>;
+    const type = getRecordText(record, ["type"]) || "";
+    const label = getRecordText(record, ["label"]) || "Clientes";
+    const normalizedLabel = label.toLowerCase();
     return {
-      id: `${getRecordText(record, ["type", "label"]) || `customer-order-${index + 1}`}-${index + 1}`,
-      label: getRecordText(record, ["label"]) || "Clientes",
+      id: `${type || label || `customer-order-${index + 1}`}-${index + 1}`,
+      label,
       orders: getRecordNumber(record, ["orders_count", "orders", "count"]) ?? 0,
       percent: getRecordNumber(record, ["percent"]) ?? 0,
-      color: CUSTOMER_ORDER_COLORS[getRecordText(record, ["type"]) || ""] || PIE_COLORS[index % PIE_COLORS.length]
+      color:
+        CUSTOMER_ORDER_COLORS[type] ||
+        (normalizedLabel.includes("sin identificar") ? "#f59e0b" : undefined) ||
+        PIE_COLORS[index % PIE_COLORS.length]
     };
   });
 }
@@ -1474,9 +1482,11 @@ export function DashboardScreen() {
               <div className="dashboard-customers-info">
                 <p>
                   Este bloque clasifica los pedidos pagados del periodo segun el historial del cliente.
-                  Un pedido cuenta como recurrente si el contacto ya tenia al menos un pedido pagado
-                  anterior. Un pedido cuenta como nuevo si es el primer pedido pagado conocido de ese
-                  contacto. Los contactos vacios no se consideran en este calculo.
+                  Un cliente nuevo es un contacto que hace su primer pedido pagado conocido dentro de
+                  este periodo. <strong>Un cliente recurrente es un cliente que ya habia hecho al menos
+                  un pedido pagado en cualquier momento anterior, no solo dentro de este periodo.</strong>{" "}
+                  Los pedidos sin telefono o contacto confiable se muestran como sin identificar. El
+                  calculo usa solo pedidos pagados del periodo.
                 </p>
               </div>
             ) : null}
