@@ -19,6 +19,8 @@ import type {
   DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSummaryResponse,
+  SurveyQuestionTrend,
+  SurveyTrendPoint,
   DashboardTopProduct,
   TopOrderCombination,
   TopRecurrentCustomer
@@ -106,6 +108,21 @@ type DashboardRecurrentCustomerRow = {
   orders: number;
   totalSpent: number;
   lastPurchaseLabel?: string;
+};
+
+type DashboardSurveyTrendRow = {
+  id: string;
+  label: string;
+  avg: number | null;
+  count: number;
+};
+
+type DashboardSurveyQuestionCard = {
+  id: string;
+  title: string;
+  average: number | null;
+  count: number;
+  trend: DashboardSurveyTrendRow[];
 };
 
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
@@ -201,6 +218,10 @@ function formatCompactNumber(value: number) {
 
 function formatOrdersLabel(value: number) {
   return `${formatNumber(value)} ${value === 1 ? "pedido" : "pedidos"}`;
+}
+
+function formatResponsesLabel(value: number) {
+  return `${formatNumber(value)} ${value === 1 ? "respuesta" : "respuestas"}`;
 }
 
 function formatUnitsLabel(value: number) {
@@ -648,17 +669,6 @@ function normalizeTopRecurrentCustomers(items: TopRecurrentCustomer[]): Dashboar
     .sort((left, right) => right.orders - left.orders);
 }
 
-function normalizeSurveyHistogram(survey: DashboardSummaryResponse["survey_summary"]) {
-  if (!survey) {
-    return [];
-  }
-
-  return [1, 2, 3, 4, 5].map((rating) => ({
-    label: `${rating}`,
-    value: toNumber(survey.general_stars_hist[String(rating)]) ?? 0
-  }));
-}
-
 function normalizeInsights(insights: DashboardInsight[]) {
   return insights
     .map((entry) => {
@@ -697,6 +707,81 @@ function formatPercentage(value: number | null | undefined) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2
   }).format(value)}%`;
+}
+
+function formatSurveyScore(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "Sin calificacion";
+  }
+
+  return `${new Intl.NumberFormat("es-BO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(value)} / 5`;
+}
+
+function normalizeSurveyTrendRows(items: SurveyTrendPoint[] | undefined | null): DashboardSurveyTrendRow[] {
+  return (items ?? []).map((item, index) => {
+    const record = item as Record<string, unknown>;
+    return {
+      id: `${getRecordText(record, ["label", "start", "end"]) || `survey-trend-${index + 1}`}-${index + 1}`,
+      label: getRecordText(record, ["label"]) || `P${index + 1}`,
+      avg: getRecordNumber(record, ["avg"]) ?? null,
+      count: getRecordNumber(record, ["count"]) ?? 0
+    };
+  });
+}
+
+function normalizeSurveyQuestionCards(items: SurveyQuestionTrend[] | undefined | null): DashboardSurveyQuestionCard[] {
+  return (items ?? []).map((item, index) => {
+    const record = item as Record<string, unknown>;
+    return {
+      id: `${getRecordText(record, ["question_id", "question_text"]) || `survey-question-${index + 1}`}-${index + 1}`,
+      title: getRecordText(record, ["question_text", "label", "question_id"]) || `Pregunta ${index + 1}`,
+      average: getRecordNumber(record, ["current_avg"]) ?? null,
+      count: getRecordNumber(record, ["current_count"]) ?? 0,
+      trend: normalizeSurveyTrendRows(Array.isArray(record.trend) ? (record.trend as SurveyTrendPoint[]) : [])
+    };
+  });
+}
+
+function buildSurveyPolylinePoints(items: DashboardSurveyTrendRow[], width: number, height: number) {
+  const validItems = items.filter((item) => item.avg !== null && item.avg !== undefined && Number.isFinite(item.avg));
+  if (items.length === 0 || validItems.length === 0) {
+    return { segments: [] as string[], points: [] as Array<{ x: number; y: number; label: string; avg: number; count: number }> };
+  }
+
+  const paddingX = 12;
+  const paddingY = 14;
+  const usableWidth = Math.max(width - paddingX * 2, 1);
+  const usableHeight = Math.max(height - paddingY * 2, 1);
+  const stepX = items.length > 1 ? usableWidth / (items.length - 1) : 0;
+  const segments: string[] = [];
+  const points: Array<{ x: number; y: number; label: string; avg: number; count: number }> = [];
+  let currentSegment = "";
+
+  items.forEach((item, index) => {
+    if (item.avg === null || item.avg === undefined || !Number.isFinite(item.avg)) {
+      if (currentSegment) {
+        segments.push(currentSegment.trim());
+        currentSegment = "";
+      }
+      return;
+    }
+
+    const clampedValue = Math.min(Math.max(item.avg, 0), 5);
+    const x = paddingX + stepX * index;
+    const y = paddingY + (1 - clampedValue / 5) * usableHeight;
+    points.push({ x, y, label: item.label, avg: clampedValue, count: item.count });
+
+    currentSegment += currentSegment ? ` L ${x} ${y}` : `M ${x} ${y}`;
+  });
+
+  if (currentSegment) {
+    segments.push(currentSegment.trim());
+  }
+
+  return { segments, points };
 }
 
 function getSalesGoalTitle(period: DashboardPeriodKey) {
@@ -836,6 +921,7 @@ export function DashboardScreen() {
   const [isOrderBehaviorInfoOpen, setIsOrderBehaviorInfoOpen] = useState(false);
   const [isCombinationsInfoOpen, setIsCombinationsInfoOpen] = useState(false);
   const [isCustomersInfoOpen, setIsCustomersInfoOpen] = useState(false);
+  const [isSurveyInfoOpen, setIsSurveyInfoOpen] = useState(false);
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -914,9 +1000,13 @@ export function DashboardScreen() {
     () => normalizeTopRecurrentCustomers(data?.top_recurrent_customers ?? []),
     [data?.top_recurrent_customers]
   );
-  const surveyHistogram = useMemo(
-    () => normalizeSurveyHistogram(data?.survey_summary ?? null),
-    [data?.survey_summary]
+  const surveyOverallTrend = useMemo(
+    () => normalizeSurveyTrendRows(data?.survey_trends?.overall ?? []),
+    [data?.survey_trends?.overall]
+  );
+  const surveyQuestionCards = useMemo(
+    () => normalizeSurveyQuestionCards(data?.survey_trends?.by_question ?? []),
+    [data?.survey_trends?.by_question]
   );
   const insights = useMemo(() => normalizeInsights(data?.insights ?? []), [data?.insights]);
   const periodContext = useMemo(
@@ -945,7 +1035,6 @@ export function DashboardScreen() {
   const periodRangeText = data?.period?.range_text?.trim() || "";
   const surveyAverage = toNumber(data?.survey_summary?.general_stars_avg) ?? 0;
   const surveyTotalAnswers = toNumber(data?.survey_summary?.total_answers) ?? 0;
-  const surveyUniqueResponses = toNumber(data?.survey_summary?.total_unique_responses) ?? 0;
   const currentProgressLabelClassName = [
     "dashboard-period-progress-label-current",
     clampedProgressPercent <= 10 ? "dashboard-period-progress-label-current--start" : "",
@@ -956,10 +1045,16 @@ export function DashboardScreen() {
 
   const maxPeriodChartSales = Math.max(...periodChartRows.map((item) => item.sales), 1);
   const maxSalesByHour = Math.max(...salesByHour.map((item) => item.sales), 1);
-  const maxSurveyValue = Math.max(...surveyHistogram.map((item) => item.value), 1);
   const categoryPieBackground = buildPieChartBackground(categories);
   const orderBehaviorPieBackground = buildPieChartBackground(orderItemDistribution);
   const customerOrderPieBackground = buildPieChartBackground(customerOrderDistribution);
+  const surveyOverallChart = buildSurveyPolylinePoints(surveyOverallTrend, 320, 132);
+  const surveyGrainLabel =
+    data?.survey_trends?.period_grain === "week"
+      ? "ultimas 7 semanas"
+      : data?.survey_trends?.period_grain === "month"
+        ? "ultimos 7 meses"
+        : "ultimos 7 dias";
 
   if (isLoading) {
     return (
@@ -1545,42 +1640,145 @@ export function DashboardScreen() {
             </div>
           </article>
 
-          <article className="dashboard-card dashboard-panel">
-            <div className="dashboard-panel-heading">
-              <p className="eyebrow">Encuestas</p>
-              <h2>Satisfaccion reciente</h2>
+          <article className="dashboard-card dashboard-panel dashboard-survey-card">
+            <div className="dashboard-survey-header">
+              <div>
+                <p className="eyebrow">Encuestas</p>
+                <h2 className="dashboard-survey-title">Respuestas a la encuesta</h2>
+              </div>
+              <button
+                type="button"
+                className="dashboard-survey-info-button"
+                aria-label="Explicacion del bloque de encuestas"
+                aria-expanded={isSurveyInfoOpen ? "true" : "false"}
+                onClick={() => setIsSurveyInfoOpen((current) => !current)}
+              >
+                i
+              </button>
             </div>
-            <div className="dashboard-stat-stack">
-              <div className="dashboard-mini-stat">
-                <span>Promedio general</span>
-                <strong>{surveyAverage.toFixed(1)}</strong>
+            {isSurveyInfoOpen ? (
+              <div className="dashboard-survey-info">
+                <p>
+                  Este bloque muestra el promedio de calificaciones con estrellas del periodo
+                  seleccionado. La linea amarilla muestra la evolucion del promedio en los {surveyGrainLabel}
+                  segun el filtro elegido. Los puntos sin respuestas no se calculan como 0; se muestran
+                  como periodos sin datos.
+                </p>
               </div>
-              <div className="dashboard-mini-stat">
-                <span>Total respuestas</span>
-                <strong>{formatNumber(surveyTotalAnswers)}</strong>
-              </div>
-              <div className="dashboard-mini-stat">
-                <span>Respuestas unicas</span>
-                <strong>{formatNumber(surveyUniqueResponses)}</strong>
-              </div>
-            </div>
-            {surveyTotalAnswers > 0 && surveyHistogram.some((item) => item.value > 0) ? (
-              <div className="dashboard-horizontal-list">
-                {surveyHistogram.map((item) => (
-                  <div key={item.label} className="dashboard-horizontal-row">
-                    <span className="dashboard-horizontal-label">{item.label} estrellas</span>
-                    <div className="dashboard-horizontal-track">
-                      <div
-                        className="dashboard-horizontal-fill"
-                        style={{ width: `${Math.max((item.value / maxSurveyValue) * 100, 6)}%` }}
-                      />
-                    </div>
-                    <strong className="dashboard-horizontal-value">{formatNumber(item.value)}</strong>
-                  </div>
-                ))}
-              </div>
+            ) : null}
+            {surveyTotalAnswers <= 0 ? (
+              <p className="dashboard-survey-empty">Todavia no hay respuestas de encuesta en este periodo.</p>
             ) : (
-              <p className="dashboard-empty-copy">No hay respuestas de encuesta para este periodo.</p>
+              <>
+                <div className="dashboard-survey-summary">
+                  <div className="dashboard-survey-score">
+                    <span>Promedio general</span>
+                    <strong>{formatSurveyScore(surveyAverage)}</strong>
+                  </div>
+                  <div className="dashboard-survey-total">
+                    <span>Total respuestas</span>
+                    <strong>{formatResponsesLabel(surveyTotalAnswers)}</strong>
+                  </div>
+                </div>
+
+                <div className="dashboard-survey-trend">
+                  <h3 className="dashboard-customers-section-title">Evolucion general</h3>
+                  {surveyOverallTrend.length === 0 ? (
+                    <p className="dashboard-survey-empty">No hay suficiente historial para mostrar evolucion.</p>
+                  ) : (
+                    <div className="dashboard-survey-line-chart">
+                      <svg viewBox="0 0 320 132" role="img" aria-label="Evolucion general de encuestas">
+                        {surveyOverallChart.segments.map((segment, index) => (
+                          <path
+                            key={`survey-segment-${index + 1}`}
+                            d={segment}
+                            fill="none"
+                            stroke="#f59e0b"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        ))}
+                        {surveyOverallChart.points.map((point) => (
+                          <circle
+                            key={`survey-point-${point.label}-${point.count}`}
+                            cx={point.x}
+                            cy={point.y}
+                            r="4"
+                            fill="#f59e0b"
+                            stroke="#ffffff"
+                            strokeWidth="2"
+                          />
+                        ))}
+                      </svg>
+                      <div className="dashboard-survey-line-labels">
+                        {surveyOverallTrend.map((point) => (
+                          <div key={point.id} className="dashboard-survey-line-label">
+                            <span>{point.label}</span>
+                            <span>{point.count > 0 ? formatNumber(point.count) : "-"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="dashboard-survey-questions">
+                  {surveyQuestionCards.length === 0 ? (
+                    <p className="dashboard-survey-empty">No hay preguntas con historial suficiente para mostrar evolucion.</p>
+                  ) : surveyQuestionCards.map((question) => {
+                    const questionChart = buildSurveyPolylinePoints(question.trend, 320, 100);
+
+                    return (
+                      <div key={question.id} className="dashboard-survey-question-card">
+                        <strong className="dashboard-survey-question-title">{question.title}</strong>
+                        <div className="dashboard-survey-question-meta">
+                          <span>{`Promedio: ${formatSurveyScore(question.average)}`}</span>
+                          <span>{formatResponsesLabel(question.count)}</span>
+                        </div>
+                        {question.trend.length === 0 ? (
+                          <p className="dashboard-survey-empty">No hay suficiente historial para esta pregunta.</p>
+                        ) : (
+                          <div className="dashboard-survey-line-chart dashboard-survey-line-chart--compact">
+                            <svg viewBox="0 0 320 100" role="img" aria-label={`Evolucion de ${question.title}`}>
+                              {questionChart.segments.map((segment, index) => (
+                                <path
+                                  key={`${question.id}-segment-${index + 1}`}
+                                  d={segment}
+                                  fill="none"
+                                  stroke="#f59e0b"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              ))}
+                              {questionChart.points.map((point) => (
+                                <circle
+                                  key={`${question.id}-point-${point.label}-${point.count}`}
+                                  cx={point.x}
+                                  cy={point.y}
+                                  r="3.5"
+                                  fill="#f59e0b"
+                                  stroke="#ffffff"
+                                  strokeWidth="1.5"
+                                />
+                              ))}
+                            </svg>
+                            <div className="dashboard-survey-line-labels">
+                              {question.trend.map((point) => (
+                                <div key={point.id} className="dashboard-survey-line-label">
+                                  <span>{point.label}</span>
+                                  <span>{point.count > 0 ? formatNumber(point.count) : "-"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </article>
         </section>

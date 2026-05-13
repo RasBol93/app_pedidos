@@ -144,6 +144,31 @@ export type DashboardSurveyQuestionSummary = {
   [key: string]: unknown;
 };
 
+export type SurveyTrendPoint = {
+  label: string;
+  start?: string;
+  end?: string;
+  avg: number | null;
+  count: number;
+  [key: string]: unknown;
+};
+
+export type SurveyQuestionTrend = {
+  question_id: string;
+  question_text: string;
+  current_avg: number | null;
+  current_count: number;
+  trend: SurveyTrendPoint[];
+  [key: string]: unknown;
+};
+
+export type DashboardSurveyTrends = {
+  period_grain: "day" | "week" | "month" | string;
+  overall: SurveyTrendPoint[];
+  by_question: SurveyQuestionTrend[];
+  [key: string]: unknown;
+};
+
 export type DashboardSurveySummary = {
   total_answers: number;
   total_unique_responses: number;
@@ -194,6 +219,7 @@ export type DashboardSummaryResponse = {
   top_recurrent_customers?: TopRecurrentCustomer[];
   customers_summary: DashboardCustomersSummary | null;
   survey_summary: DashboardSurveySummary | null;
+  survey_trends?: DashboardSurveyTrends | null;
   insights: DashboardInsight[];
   metadata: DashboardMetadata | null;
 };
