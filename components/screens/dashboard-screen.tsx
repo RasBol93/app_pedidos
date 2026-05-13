@@ -1369,10 +1369,8 @@ export function DashboardScreen() {
               <div className="dashboard-pie-info">
                 <p>
                   Esta lista muestra las combinaciones reales de productos que se repiten en pedidos
-                  pagados. Solo se consideran pedidos con mas de un producto distinto. Si un pedido
-                  tiene dos unidades del mismo producto pero ningun otro producto, no se considera
-                  combinacion. El monto en Bs representa el valor generado por los pedidos que contienen
-                  esa combinacion.
+                  pagados. Solo se consideran pedidos con mas de un producto distinto. El monto en Bs
+                  representa el valor generado por los pedidos que contienen esa combinacion.
                 </p>
               </div>
             ) : null}
@@ -1386,7 +1384,7 @@ export function DashboardScreen() {
                     <div className="dashboard-combination-main">
                       <strong className="dashboard-combination-label">{item.label}</strong>
                       <span className="dashboard-combination-meta">
-                        {`${formatOrdersLabel(item.orders)}${item.sales !== undefined ? ` - ${formatCurrency(item.sales, currency)} generados` : ""} - ${formatPercentage(item.percent)}`}
+                        {`${formatOrdersLabel(item.orders)}${item.sales !== undefined ? ` - ${formatCurrency(item.sales, currency)} generados` : ""}`}
                       </span>
                     </div>
                   </div>
