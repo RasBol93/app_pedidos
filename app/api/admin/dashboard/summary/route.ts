@@ -6,7 +6,10 @@ const ALLOWED_PERIODS = new Set(["today", "this_week", "month_to_date"]);
 const BACKEND_TIMEOUT_MS = 35_000;
 
 function getBackendApiBaseUrl() {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  const baseUrl =
+    process.env.API_BASE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
+    "https://proyecto-reservas-idwl.onrender.com";
 
   if (!baseUrl) {
     return null;
