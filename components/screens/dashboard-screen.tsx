@@ -1975,8 +1975,10 @@ export function DashboardScreen() {
           {isOrdersDetailInfoOpen ? (
             <div className="dashboard-orders-detail-info">
               <p>
-                Esta tabla muestra los pedidos pagados del periodo seleccionado. Se carga solo cuando
-                la abres para no hacer mas pesado el dashboard.
+                Esta tabla muestra los pedidos pagados del período seleccionado. El período sigue
+                el mismo criterio comercial del dashboard. La fecha y hora visible corresponden a
+                la confirmación de pago cuando existe; si no existe, se muestra la fecha de
+                creación del pedido.
               </p>
             </div>
           ) : null}
