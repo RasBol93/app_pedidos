@@ -135,16 +135,17 @@ export type DashboardCustomersSummary = {
 
 export type DashboardSurveyQuestionSummary = {
   question_id?: string;
-  question_key?: string;
-  question?: string;
-  label?: string;
-  average?: number;
-  total_answers?: number;
-  histogram?: Record<string, number>;
+  question_text?: string;
+  answer_type?: string;
+  count?: number;
+  stars_avg?: number | null;
+  stars_hist?: Record<string, number>;
+  text_answers?: string[];
+  order_hint?: number;
   [key: string]: unknown;
 };
 
-export type SurveyTrendPoint = {
+export type DashboardSurveyTrendPoint = {
   label: string;
   start?: string;
   end?: string;
@@ -153,19 +154,19 @@ export type SurveyTrendPoint = {
   [key: string]: unknown;
 };
 
-export type SurveyQuestionTrend = {
+export type DashboardSurveyQuestionTrend = {
   question_id: string;
   question_text: string;
   current_avg: number | null;
   current_count: number;
-  trend: SurveyTrendPoint[];
+  trend: DashboardSurveyTrendPoint[];
   [key: string]: unknown;
 };
 
 export type DashboardSurveyTrends = {
   period_grain: "day" | "week" | "month" | string;
-  overall: SurveyTrendPoint[];
-  by_question: SurveyQuestionTrend[];
+  overall: DashboardSurveyTrendPoint[];
+  by_question: DashboardSurveyQuestionTrend[];
   [key: string]: unknown;
 };
 

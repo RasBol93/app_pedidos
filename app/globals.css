@@ -3066,17 +3066,18 @@ img {
   line-height: 1.55;
 }
 
-.dashboard-survey-summary,
-.dashboard-survey-questions,
+.dashboard-survey-metrics,
+.dashboard-survey-question-list,
 .dashboard-survey-question-card {
   display: grid;
   gap: 12px;
 }
 
-.dashboard-survey-summary {
+.dashboard-survey-metrics {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.dashboard-survey-metric,
 .dashboard-survey-score,
 .dashboard-survey-total {
   display: grid;
@@ -3139,6 +3140,7 @@ img {
   background: linear-gradient(180deg, #fffdf7, #ffffff);
 }
 
+.dashboard-survey-axis-labels,
 .dashboard-survey-line-labels {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(28px, 1fr));
@@ -3273,7 +3275,7 @@ img {
     align-items: start;
   }
 
-  .dashboard-survey-questions {
+  .dashboard-survey-question-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
