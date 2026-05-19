@@ -2163,14 +2163,15 @@ img {
 }
 
 .dashboard-orders-detail-summary strong,
-.dashboard-orders-detail-cell strong {
+.dashboard-orders-detail-cell strong,
+.dashboard-orders-detail-date {
   color: #172554;
 }
 
 .dashboard-orders-detail-row {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 12px;
+  padding: 16px;
   border-radius: 18px;
   background: #f8fafc;
   border: 1px solid rgba(148, 163, 184, 0.12);
@@ -2180,18 +2181,42 @@ img {
   display: none;
 }
 
-.dashboard-orders-detail-cell {
+.dashboard-orders-detail-cell,
+.dashboard-orders-detail-field {
   gap: 3px;
   min-width: 0;
 }
 
 .dashboard-orders-detail-cell strong,
-.dashboard-orders-detail-cell span {
+.dashboard-orders-detail-cell span,
+.dashboard-orders-detail-field-label,
+.dashboard-orders-detail-field-value,
+.dashboard-orders-detail-date {
   overflow-wrap: anywhere;
 }
 
 .dashboard-orders-detail-cell--amount {
   justify-items: start;
+}
+
+.dashboard-orders-detail-field {
+  display: grid;
+}
+
+.dashboard-orders-detail-field-label,
+.dashboard-orders-detail-field-value,
+.dashboard-orders-detail-date {
+  color: #172554;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.dashboard-orders-detail-field-label {
+  font-weight: 700;
+}
+
+.dashboard-orders-detail-date {
+  font-weight: 800;
 }
 
 .dashboard-orders-detail-state {
@@ -3268,7 +3293,7 @@ img {
   }
 
   .dashboard-orders-detail-row {
-    grid-template-columns: minmax(120px, 1.1fr) minmax(140px, 1.1fr) minmax(0, 2fr) minmax(110px, 0.8fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
 
@@ -3286,11 +3311,6 @@ img {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-  }
-
-  .dashboard-orders-detail-cell--amount {
-    justify-items: end;
-    text-align: right;
   }
 
   .dashboard-horizontal-row {

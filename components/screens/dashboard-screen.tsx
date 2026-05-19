@@ -1357,84 +1357,6 @@ export function DashboardScreen() {
           )}
         </section>
 
-        <section className="dashboard-card dashboard-panel dashboard-orders-detail-card">
-          <div className="dashboard-orders-detail-header">
-            <div>
-              <p className="eyebrow">Pedidos</p>
-              <h2 className="dashboard-orders-detail-title">Pedidos del periodo</h2>
-            </div>
-            <button
-              type="button"
-              className="dashboard-orders-detail-info-button"
-              aria-label="Explicacion del detalle de pedidos"
-              aria-expanded={isOrdersDetailInfoOpen ? "true" : "false"}
-              onClick={() => setIsOrdersDetailInfoOpen((current) => !current)}
-            >
-              i
-            </button>
-          </div>
-          {isOrdersDetailInfoOpen ? (
-            <div className="dashboard-orders-detail-info">
-              <p>
-                Esta tabla muestra los pedidos pagados del periodo seleccionado. Se carga solo cuando
-                la abres para no hacer mas pesado el dashboard.
-              </p>
-            </div>
-          ) : null}
-          <div className="dashboard-orders-detail-actions">
-            <button
-              type="button"
-              className="dashboard-orders-detail-toggle"
-              onClick={handleToggleOrdersDetail}
-            >
-              {isOrdersDetailOpen ? "Ocultar pedidos" : "Ver pedidos del periodo"}
-            </button>
-            {currentOrdersDetail ? (
-              <div className="dashboard-orders-detail-summary">
-                <span>{formatOrderCountLabel(currentOrdersDetail.total_orders)}</span>
-                <strong>{formatCurrency(currentOrdersDetail.total_paid_amount, currency)}</strong>
-              </div>
-            ) : null}
-          </div>
-          {isOrdersDetailOpen ? (
-            isOrdersDetailLoading ? (
-              <p className="dashboard-orders-detail-state">Cargando pedidos del periodo...</p>
-            ) : ordersDetailError ? (
-              <p className="dashboard-orders-detail-state dashboard-orders-detail-state--error">{ordersDetailError}</p>
-            ) : !currentOrdersDetail || ordersDetailRows.length === 0 ? (
-              <p className="dashboard-orders-detail-state">No hay pedidos pagados en este periodo.</p>
-            ) : (
-              <div className="dashboard-orders-detail-list" aria-label="Pedidos pagados del periodo">
-                <div className="dashboard-orders-detail-row dashboard-orders-detail-row--head">
-                  <span>Fecha y hora</span>
-                  <span>Cliente</span>
-                  <span>Pedido</span>
-                  <span>Pagado</span>
-                </div>
-                {ordersDetailRows.map((order) => (
-                  <div key={order.id} className="dashboard-orders-detail-row">
-                    <div className="dashboard-orders-detail-cell">
-                      <strong>{order.dateLabel}</strong>
-                      <span>{order.timeLabel || "Sin hora"}</span>
-                    </div>
-                    <div className="dashboard-orders-detail-cell">
-                      <strong>{order.customerName}</strong>
-                      {order.customerContact ? <span>{order.customerContact}</span> : null}
-                    </div>
-                    <div className="dashboard-orders-detail-cell">
-                      <strong>Pedido</strong>
-                      <span>{order.itemsSummary}</span>
-                    </div>
-                    <div className="dashboard-orders-detail-cell dashboard-orders-detail-cell--amount">
-                      <strong>{formatCurrency(order.paidAmount, order.currency || currency)}</strong>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : null}
-        </section>
-
         <section className="dashboard-grid">
           {selectedPeriod !== "today" ? (
             <article className="dashboard-card dashboard-panel dashboard-period-chart">
@@ -1963,6 +1885,89 @@ export function DashboardScreen() {
             </ul>
           )}
         </article>
+
+        <section className="dashboard-card dashboard-panel dashboard-orders-detail-card">
+          <div className="dashboard-orders-detail-header">
+            <div>
+              <p className="eyebrow">Pedidos</p>
+              <h2 className="dashboard-orders-detail-title">Pedidos del periodo</h2>
+            </div>
+            <button
+              type="button"
+              className="dashboard-orders-detail-info-button"
+              aria-label="Explicacion del detalle de pedidos"
+              aria-expanded={isOrdersDetailInfoOpen ? "true" : "false"}
+              onClick={() => setIsOrdersDetailInfoOpen((current) => !current)}
+            >
+              i
+            </button>
+          </div>
+          {isOrdersDetailInfoOpen ? (
+            <div className="dashboard-orders-detail-info">
+              <p>
+                Esta tabla muestra los pedidos pagados del periodo seleccionado. Se carga solo cuando
+                la abres para no hacer mas pesado el dashboard.
+              </p>
+            </div>
+          ) : null}
+          <div className="dashboard-orders-detail-actions">
+            <button
+              type="button"
+              className="dashboard-orders-detail-toggle"
+              onClick={handleToggleOrdersDetail}
+            >
+              {isOrdersDetailOpen ? "Ocultar pedidos" : "Ver pedidos del periodo"}
+            </button>
+            {currentOrdersDetail ? (
+              <div className="dashboard-orders-detail-summary">
+                <span><strong>{formatOrderCountLabel(currentOrdersDetail.total_orders)}</strong></span>
+                <strong>{formatCurrency(currentOrdersDetail.total_paid_amount, currency)}</strong>
+              </div>
+            ) : null}
+          </div>
+          {isOrdersDetailOpen ? (
+            isOrdersDetailLoading ? (
+              <p className="dashboard-orders-detail-state">Cargando pedidos del periodo...</p>
+            ) : ordersDetailError ? (
+              <p className="dashboard-orders-detail-state dashboard-orders-detail-state--error">{ordersDetailError}</p>
+            ) : !currentOrdersDetail || ordersDetailRows.length === 0 ? (
+              <p className="dashboard-orders-detail-state">No hay pedidos pagados en este periodo.</p>
+            ) : (
+              <div className="dashboard-orders-detail-list" aria-label="Pedidos pagados del periodo">
+                {ordersDetailRows.map((order) => (
+                  <div key={order.id} className="dashboard-orders-detail-row">
+                    <div className="dashboard-orders-detail-field">
+                      <span className="dashboard-orders-detail-field-label">Fecha:</span>
+                      <strong className="dashboard-orders-detail-date">{order.dateLabel}</strong>
+                    </div>
+                    <div className="dashboard-orders-detail-field">
+                      <span className="dashboard-orders-detail-field-label">Hora:</span>
+                      <span className="dashboard-orders-detail-field-value">{order.timeLabel || "Sin hora"}</span>
+                    </div>
+                    <div className="dashboard-orders-detail-field">
+                      <span className="dashboard-orders-detail-field-label">Nombre:</span>
+                      <span className="dashboard-orders-detail-field-value">{order.customerName}</span>
+                    </div>
+                    <div className="dashboard-orders-detail-field">
+                      <span className="dashboard-orders-detail-field-label">Telefono:</span>
+                      <span className="dashboard-orders-detail-field-value">{order.customerContact || "No registrado"}</span>
+                    </div>
+                    <div className="dashboard-orders-detail-field">
+                      <span className="dashboard-orders-detail-field-label">Pedido:</span>
+                      <span className="dashboard-orders-detail-field-value">{order.itemsSummary}</span>
+                    </div>
+                    <div className="dashboard-orders-detail-field">
+                      <span className="dashboard-orders-detail-field-label">Pagado:</span>
+                      <span className="dashboard-orders-detail-field-value">
+                        {formatCurrency(order.paidAmount, order.currency || currency)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : null}
+        </section>
       </div>
     </PageShell>
   );
