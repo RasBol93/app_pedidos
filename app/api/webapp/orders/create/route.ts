@@ -35,8 +35,6 @@ export async function POST(request: Request) {
         : []
     };
 
-    console.log("Creating order → forwarding to backend");
-
     const response = await fetch(getOrdersCreateUrl(), {
       method: "POST",
       headers: {
@@ -47,8 +45,6 @@ export async function POST(request: Request) {
     });
 
     const data = await response.json();
-
-    console.log("Backend response:", data);
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
