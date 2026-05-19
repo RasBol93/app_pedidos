@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { PageShell } from "@/components/shared/page-shell";
-import { fetchDashboardSummary } from "@/services/dashboard-api";
+import { fetchDashboardOrdersDetail, fetchDashboardSummary } from "@/services/dashboard-api";
 import type {
   CustomerOrderTypeDistribution,
   DashboardCategory,
@@ -15,7 +15,9 @@ import type {
   DashboardKpiComparison,
   DashboardKpiComparisonMap,
   DashboardKpis,
+  DashboardOrdersDetailResponse,
   OrderItemCountDistribution,
+  DashboardOrderDetailRow,
   DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSummaryResponse,
@@ -125,6 +127,17 @@ type DashboardSurveyQuestionCard = {
   trend: DashboardSurveyTrendRow[];
 };
 
+type DashboardPaidOrderRow = {
+  id: string;
+  dateLabel: string;
+  timeLabel: string;
+  customerName: string;
+  customerContact?: string;
+  itemsSummary: string;
+  paidAmount: number;
+  currency?: string;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
   { value: "today", label: "Hoy" },
   { value: "this_week", label: "Esta semana" },
@@ -230,6 +243,10 @@ function formatUnitsLabel(value: number) {
 
 function formatItemCountLabel(value: number) {
   return `${formatNumber(value)} ${value === 1 ? "item" : "items"}`;
+}
+
+function formatOrderCountLabel(value: number) {
+  return `${formatNumber(value)} ${value === 1 ? "pedido pagado" : "pedidos pagados"}`;
 }
 
 function toNumber(value: unknown) {
@@ -745,6 +762,23 @@ function normalizeSurveyQuestionCards(items: SurveyQuestionTrend[] | undefined |
   });
 }
 
+function normalizeOrdersDetailRows(items: DashboardOrderDetailRow[] | undefined | null): DashboardPaidOrderRow[] {
+  return (items ?? []).map((item, index) => {
+    const record = item as Record<string, unknown>;
+
+    return {
+      id: getRecordText(record, ["order_id"]) || `paid-order-${index + 1}`,
+      dateLabel: getRecordText(record, ["date_label"]) || "Sin fecha",
+      timeLabel: getRecordText(record, ["time_label"]) || "",
+      customerName: getRecordText(record, ["customer_name"]) || "Cliente sin nombre",
+      customerContact: getRecordText(record, ["customer_contact"]),
+      itemsSummary: getRecordText(record, ["items_summary"]) || "Pedido sin detalle",
+      paidAmount: getRecordNumber(record, ["paid_amount", "amount", "total", "sales"]) ?? 0,
+      currency: getRecordText(record, ["currency"])
+    };
+  });
+}
+
 function buildSurveyPolylinePoints(items: DashboardSurveyTrendRow[], width: number, height: number) {
   const validItems = items.filter((item) => item.avg !== null && item.avg !== undefined && Number.isFinite(item.avg));
   if (items.length === 0 || validItems.length === 0) {
@@ -922,6 +956,13 @@ export function DashboardScreen() {
   const [isCombinationsInfoOpen, setIsCombinationsInfoOpen] = useState(false);
   const [isCustomersInfoOpen, setIsCustomersInfoOpen] = useState(false);
   const [isSurveyInfoOpen, setIsSurveyInfoOpen] = useState(false);
+  const [isOrdersDetailInfoOpen, setIsOrdersDetailInfoOpen] = useState(false);
+  const [isOrdersDetailOpen, setIsOrdersDetailOpen] = useState(false);
+  const [isOrdersDetailLoading, setIsOrdersDetailLoading] = useState(false);
+  const [ordersDetailError, setOrdersDetailError] = useState<string | null>(null);
+  const [ordersDetailByPeriod, setOrdersDetailByPeriod] = useState<
+    Partial<Record<DashboardPeriodKey, DashboardOrdersDetailResponse>>
+  >({});
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -931,6 +972,12 @@ export function DashboardScreen() {
       setSelectedPeriod(periodFromUrl);
     }
   }, [periodFromUrl]);
+
+  useEffect(() => {
+    setIsOrdersDetailOpen(false);
+    setIsOrdersDetailLoading(false);
+    setOrdersDetailError(null);
+  }, [selectedPeriod]);
 
   useEffect(() => {
     if (!tenantId || !token) {
@@ -1055,6 +1102,46 @@ export function DashboardScreen() {
       : data?.survey_trends?.period_grain === "month"
         ? "ultimos 7 meses"
         : "ultimos 7 dias";
+  const currentOrdersDetail = ordersDetailByPeriod[selectedPeriod] ?? null;
+  const ordersDetailRows = useMemo(
+    () => normalizeOrdersDetailRows(currentOrdersDetail?.orders ?? []),
+    [currentOrdersDetail?.orders]
+  );
+
+  async function handleToggleOrdersDetail() {
+    if (isOrdersDetailOpen) {
+      setIsOrdersDetailOpen(false);
+      return;
+    }
+
+    setIsOrdersDetailOpen(true);
+    setOrdersDetailError(null);
+
+    if (currentOrdersDetail) {
+      return;
+    }
+
+    setIsOrdersDetailLoading(true);
+
+    try {
+      const payload = await fetchDashboardOrdersDetail({
+        tenantId,
+        period: selectedPeriod,
+        token
+      });
+
+      setOrdersDetailByPeriod((current) => ({
+        ...current,
+        [selectedPeriod]: payload
+      }));
+    } catch (nextError) {
+      const message =
+        nextError instanceof Error ? nextError.message : "No se pudieron cargar los pedidos del periodo.";
+      setOrdersDetailError(message);
+    } finally {
+      setIsOrdersDetailLoading(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -1268,6 +1355,84 @@ export function DashboardScreen() {
               </p>
             </div>
           )}
+        </section>
+
+        <section className="dashboard-card dashboard-panel dashboard-orders-detail-card">
+          <div className="dashboard-orders-detail-header">
+            <div>
+              <p className="eyebrow">Pedidos</p>
+              <h2 className="dashboard-orders-detail-title">Pedidos del periodo</h2>
+            </div>
+            <button
+              type="button"
+              className="dashboard-orders-detail-info-button"
+              aria-label="Explicacion del detalle de pedidos"
+              aria-expanded={isOrdersDetailInfoOpen ? "true" : "false"}
+              onClick={() => setIsOrdersDetailInfoOpen((current) => !current)}
+            >
+              i
+            </button>
+          </div>
+          {isOrdersDetailInfoOpen ? (
+            <div className="dashboard-orders-detail-info">
+              <p>
+                Esta tabla muestra los pedidos pagados del periodo seleccionado. Se carga solo cuando
+                la abres para no hacer mas pesado el dashboard.
+              </p>
+            </div>
+          ) : null}
+          <div className="dashboard-orders-detail-actions">
+            <button
+              type="button"
+              className="dashboard-orders-detail-toggle"
+              onClick={handleToggleOrdersDetail}
+            >
+              {isOrdersDetailOpen ? "Ocultar pedidos" : "Ver pedidos del periodo"}
+            </button>
+            {currentOrdersDetail ? (
+              <div className="dashboard-orders-detail-summary">
+                <span>{formatOrderCountLabel(currentOrdersDetail.total_orders)}</span>
+                <strong>{formatCurrency(currentOrdersDetail.total_paid_amount, currency)}</strong>
+              </div>
+            ) : null}
+          </div>
+          {isOrdersDetailOpen ? (
+            isOrdersDetailLoading ? (
+              <p className="dashboard-orders-detail-state">Cargando pedidos del periodo...</p>
+            ) : ordersDetailError ? (
+              <p className="dashboard-orders-detail-state dashboard-orders-detail-state--error">{ordersDetailError}</p>
+            ) : !currentOrdersDetail || ordersDetailRows.length === 0 ? (
+              <p className="dashboard-orders-detail-state">No hay pedidos pagados en este periodo.</p>
+            ) : (
+              <div className="dashboard-orders-detail-list" aria-label="Pedidos pagados del periodo">
+                <div className="dashboard-orders-detail-row dashboard-orders-detail-row--head">
+                  <span>Fecha y hora</span>
+                  <span>Cliente</span>
+                  <span>Pedido</span>
+                  <span>Pagado</span>
+                </div>
+                {ordersDetailRows.map((order) => (
+                  <div key={order.id} className="dashboard-orders-detail-row">
+                    <div className="dashboard-orders-detail-cell">
+                      <strong>{order.dateLabel}</strong>
+                      <span>{order.timeLabel || "Sin hora"}</span>
+                    </div>
+                    <div className="dashboard-orders-detail-cell">
+                      <strong>{order.customerName}</strong>
+                      {order.customerContact ? <span>{order.customerContact}</span> : null}
+                    </div>
+                    <div className="dashboard-orders-detail-cell">
+                      <strong>Pedido</strong>
+                      <span>{order.itemsSummary}</span>
+                    </div>
+                    <div className="dashboard-orders-detail-cell dashboard-orders-detail-cell--amount">
+                      <strong>{formatCurrency(order.paidAmount, order.currency || currency)}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : null}
         </section>
 
         <section className="dashboard-grid">

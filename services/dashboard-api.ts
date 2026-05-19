@@ -1,4 +1,8 @@
-import type { DashboardPeriodKey, DashboardSummaryResponse } from "@/types/dashboard";
+import type {
+  DashboardOrdersDetailResponse,
+  DashboardPeriodKey,
+  DashboardSummaryResponse
+} from "@/types/dashboard";
 
 export class DashboardApiError extends Error {
   status: number;
@@ -12,8 +16,15 @@ export class DashboardApiError extends Error {
 
 const ALLOWED_PERIODS = new Set(["today", "this_week", "month_to_date"]);
 const DASHBOARD_TIMEOUT_MS = 45_000;
+const DASHBOARD_ORDERS_DETAIL_TIMEOUT_MS = 105_000;
 
 type FetchDashboardSummaryParams = {
+  tenantId: string;
+  period?: DashboardPeriodKey;
+  token: string;
+};
+
+type FetchDashboardOrdersDetailParams = {
   tenantId: string;
   period?: DashboardPeriodKey;
   token: string;
@@ -99,6 +110,50 @@ export async function fetchDashboardSummary({
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new DashboardApiError("El dashboard tardó demasiado en responder.", 504);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function fetchDashboardOrdersDetail({
+  tenantId,
+  period,
+  token
+}: FetchDashboardOrdersDetailParams) {
+  const normalizedTenantId = tenantId.trim();
+  const normalizedToken = token.trim();
+  const normalizedPeriod = normalizePeriod(period);
+
+  if (!normalizedTenantId) {
+    throw new DashboardApiError("Falta tenant_id para cargar los pedidos del dashboard.", 400);
+  }
+
+  if (!normalizedToken) {
+    throw new DashboardApiError("Falta token para cargar los pedidos del dashboard.", 400);
+  }
+
+  const params = new URLSearchParams({
+    tenant_id: normalizedTenantId,
+    period: normalizedPeriod,
+    token: normalizedToken
+  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DASHBOARD_ORDERS_DETAIL_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`/api/admin/dashboard/orders-detail?${params.toString()}`, {
+      cache: "no-store",
+      signal: controller.signal
+    });
+
+    return parseDashboardJson<DashboardOrdersDetailResponse>(response);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new DashboardApiError("El detalle de pedidos tardó demasiado en responder.", 504);
     }
 
     throw error;

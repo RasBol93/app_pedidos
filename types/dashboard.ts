@@ -184,6 +184,29 @@ export type DashboardMetadata = {
   [key: string]: unknown;
 };
 
+export type DashboardOrderDetailRow = {
+  order_id: string;
+  paid_at?: string;
+  date_label: string;
+  time_label: string;
+  customer_name: string;
+  customer_contact?: string;
+  items_summary: string;
+  paid_amount: number;
+  currency?: string;
+  [key: string]: unknown;
+};
+
+export type DashboardOrdersDetailResponse = {
+  ok: boolean;
+  tenant_id: string;
+  period: DashboardPeriod;
+  orders: DashboardOrderDetailRow[];
+  total_orders: number;
+  total_paid_amount: number;
+  [key: string]: unknown;
+};
+
 export type DashboardSalesGoal = {
   period: "today" | "this_week" | "month_to_date" | string;
   target_amount: number | null;
