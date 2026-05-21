@@ -1,6 +1,7 @@
 import type {
   DashboardOrdersDetailResponse,
   DashboardPeriodKey,
+  DashboardPeriodSelection,
   DashboardSummaryResponse
 } from "@/types/dashboard";
 
@@ -21,12 +22,18 @@ const DASHBOARD_ORDERS_DETAIL_TIMEOUT_MS = 105_000;
 type FetchDashboardSummaryParams = {
   tenantId: string;
   period?: DashboardPeriodKey;
+  date?: string;
+  week_start?: string;
+  month?: string;
   token: string;
 };
 
 type FetchDashboardOrdersDetailParams = {
   tenantId: string;
   period?: DashboardPeriodKey;
+  date?: string;
+  week_start?: string;
+  month?: string;
   token: string;
 };
 
@@ -38,6 +45,31 @@ function normalizePeriod(period?: DashboardPeriodKey) {
   }
 
   return value as DashboardPeriodKey;
+}
+
+function buildDashboardSelectionParams({
+  period,
+  date,
+  week_start,
+  month
+}: DashboardPeriodSelection) {
+  const params = new URLSearchParams({
+    period
+  });
+
+  if (period === "today" && date?.trim()) {
+    params.set("date", date.trim());
+  }
+
+  if (period === "this_week" && week_start?.trim()) {
+    params.set("week_start", week_start.trim());
+  }
+
+  if (period === "month_to_date" && month?.trim()) {
+    params.set("month", month.trim());
+  }
+
+  return params;
 }
 
 async function parseDashboardJson<T>(response: Response): Promise<T> {
@@ -77,6 +109,9 @@ async function parseDashboardJson<T>(response: Response): Promise<T> {
 export async function fetchDashboardSummary({
   tenantId,
   period,
+  date,
+  week_start,
+  month,
   token
 }: FetchDashboardSummaryParams) {
   const normalizedTenantId = tenantId.trim();
@@ -91,11 +126,14 @@ export async function fetchDashboardSummary({
     throw new DashboardApiError("Falta token para cargar el dashboard.", 400);
   }
 
-  const params = new URLSearchParams({
-    tenant_id: normalizedTenantId,
+  const params = buildDashboardSelectionParams({
     period: normalizedPeriod,
-    token: normalizedToken
+    date,
+    week_start,
+    month
   });
+  params.set("tenant_id", normalizedTenantId);
+  params.set("token", normalizedToken);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DASHBOARD_TIMEOUT_MS);
@@ -121,6 +159,9 @@ export async function fetchDashboardSummary({
 export async function fetchDashboardOrdersDetail({
   tenantId,
   period,
+  date,
+  week_start,
+  month,
   token
 }: FetchDashboardOrdersDetailParams) {
   const normalizedTenantId = tenantId.trim();
@@ -135,11 +176,14 @@ export async function fetchDashboardOrdersDetail({
     throw new DashboardApiError("Falta token para cargar los pedidos del dashboard.", 400);
   }
 
-  const params = new URLSearchParams({
-    tenant_id: normalizedTenantId,
+  const params = buildDashboardSelectionParams({
     period: normalizedPeriod,
-    token: normalizedToken
+    date,
+    week_start,
+    month
   });
+  params.set("tenant_id", normalizedTenantId);
+  params.set("token", normalizedToken);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DASHBOARD_ORDERS_DETAIL_TIMEOUT_MS);

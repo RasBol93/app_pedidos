@@ -47,6 +47,9 @@ export async function GET(request: Request) {
   const tenantId = searchParams.get("tenant_id")?.trim();
   const token = searchParams.get("token")?.trim();
   const period = searchParams.get("period")?.trim() || "today";
+  const date = searchParams.get("date")?.trim();
+  const weekStart = searchParams.get("week_start")?.trim();
+  const month = searchParams.get("month")?.trim();
 
   if (!tenantId) {
     return jsonResponse({ ok: false, error: "tenant_id es requerido." }, 400);
@@ -68,11 +71,25 @@ export async function GET(request: Request) {
 
   try {
     const backendUrl = new URL("/admin/dashboard/orders-detail", backendBaseUrl);
-    backendUrl.search = new URLSearchParams({
+    const backendSearchParams = new URLSearchParams({
       tenant_id: tenantId,
       period,
       token
-    }).toString();
+    });
+
+    if (date) {
+      backendSearchParams.set("date", date);
+    }
+
+    if (weekStart) {
+      backendSearchParams.set("week_start", weekStart);
+    }
+
+    if (month) {
+      backendSearchParams.set("month", month);
+    }
+
+    backendUrl.search = backendSearchParams.toString();
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);

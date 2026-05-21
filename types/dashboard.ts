@@ -6,6 +6,13 @@ export type DashboardPeriod = {
   range_text?: string;
 };
 
+export type DashboardPeriodSelection = {
+  period: DashboardPeriodKey;
+  date?: string;
+  week_start?: string;
+  month?: string;
+};
+
 export type DashboardTenant = {
   tenant_id?: string;
   restaurant_name?: string;

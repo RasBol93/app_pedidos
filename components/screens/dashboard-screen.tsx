@@ -18,6 +18,7 @@ import type {
   DashboardOrdersDetailResponse,
   OrderItemCountDistribution,
   DashboardOrderDetailRow,
+  DashboardPeriodSelection,
   DashboardPeriodKey,
   DashboardSeriesPoint,
   DashboardSurveyQuestionSummary,
@@ -140,10 +141,15 @@ type DashboardPaidOrderRow = {
   currency?: string;
 };
 
+type DashboardHistoricalOption = {
+  value: string;
+  label: string;
+};
+
 const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
-  { value: "today", label: "Hoy" },
-  { value: "this_week", label: "Esta semana" },
-  { value: "month_to_date", label: "Mes en curso" }
+  { value: "today", label: "Diario" },
+  { value: "this_week", label: "Semanal" },
+  { value: "month_to_date", label: "Mensual" }
 ];
 
 const KPI_METHODOLOGY: Record<DashboardKpiCard["key"], string> = {
@@ -200,6 +206,106 @@ function formatTime(value: Date) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(value);
+}
+
+function startOfLocalDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function addDays(value: Date, amount: number) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate() + amount);
+}
+
+function addMonths(value: Date, amount: number) {
+  return new Date(value.getFullYear(), value.getMonth() + amount, 1);
+}
+
+function getLocalWeekStart(value: Date) {
+  const day = value.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  return startOfLocalDay(addDays(value, offset));
+}
+
+function padDatePart(value: number) {
+  return value.toString().padStart(2, "0");
+}
+
+function formatDateInputValue(value: Date) {
+  return `${value.getFullYear()}-${padDatePart(value.getMonth() + 1)}-${padDatePart(value.getDate())}`;
+}
+
+function formatMonthInputValue(value: Date) {
+  return `${value.getFullYear()}-${padDatePart(value.getMonth() + 1)}`;
+}
+
+function parseDateInputValue(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(year, monthIndex, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== monthIndex ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function parseMonthInputValue(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const date = new Date(year, monthIndex, 1);
+
+  if (date.getFullYear() !== year || date.getMonth() !== monthIndex) {
+    return null;
+  }
+
+  return date;
+}
+
+function isSameLocalDate(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function isSameLocalMonth(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
+}
+
+function formatLongMonthYear(value: Date) {
+  const formatted = new Intl.DateTimeFormat("es-BO", {
+    month: "long",
+    year: "numeric"
+  }).format(value);
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 function formatSimpleDate(value?: string) {
@@ -937,70 +1043,168 @@ function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
   return new Date();
 }
 
-function buildPeriodContext(period: DashboardPeriodKey, metadata: DashboardSummaryResponse["metadata"]): DashboardPeriodContext {
-  const contextDate = resolveContextDate(metadata);
-
-  if (period === "today") {
-    const minutesElapsed = contextDate.getHours() * 60 + contextDate.getMinutes();
+function getDailyOptions(referenceDate: Date): DashboardHistoricalOption[] {
+  return Array.from({ length: 30 }, (_, index) => {
+    const optionDate = addDays(referenceDate, -index);
+    const previousDate = addDays(referenceDate, -1);
 
     return {
-      title: "Analisis de rendimiento hasta esta hora",
-      description:
-        "El analisis considera los resultados acumulados de hoy hasta la hora actual. Las comparaciones se hacen contra otros dias usando esta misma hora de corte, para evitar comparar un dia parcial contra un dia completo.",
-      note:
-        "En Hoy, las referencias se calculan hasta la misma hora actual. Por ejemplo: hoy hasta las 15:00 vs ayer hasta las 15:00.",
-      progressPercent: (minutesElapsed / (24 * 60)) * 100,
-      progressStartLabel: "00:00",
-      progressCurrentLabel: formatTime(contextDate),
-      progressEndLabel: "23:59",
-      progressCaption: `Calculado hasta: ${formatTime(contextDate)}`
+      value: formatDateInputValue(optionDate),
+      label:
+        index === 0
+          ? "Hoy"
+          : isSameLocalDate(optionDate, previousDate)
+            ? "Ayer"
+            : formatSimpleDate(formatDateInputValue(optionDate))
     };
-  }
+  });
+}
 
+function getWeeklyOptions(referenceDate: Date): DashboardHistoricalOption[] {
+  const currentWeekStart = getLocalWeekStart(referenceDate);
+
+  return Array.from({ length: 12 }, (_, index) => {
+    const weekStart = addDays(currentWeekStart, -index * 7);
+    const weekEnd = addDays(weekStart, 6);
+
+    return {
+      value: formatDateInputValue(weekStart),
+      label:
+        index === 0
+          ? "Semana actual"
+          : index === 1
+            ? "Semana pasada"
+            : `${formatSimpleDate(formatDateInputValue(weekStart))} – ${formatSimpleDate(formatDateInputValue(weekEnd))}`
+    };
+  });
+}
+
+function getMonthlyOptions(referenceDate: Date): DashboardHistoricalOption[] {
+  const currentMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+
+  return Array.from({ length: 6 }, (_, index) => {
+    const monthDate = addMonths(currentMonth, -index);
+
+    return {
+      value: formatMonthInputValue(monthDate),
+      label:
+        index === 0
+          ? "Mes actual"
+          : index === 1
+            ? "Mes anterior"
+            : formatLongMonthYear(monthDate)
+    };
+  });
+}
+
+function buildActivePeriodSelection(
+  period: DashboardPeriodKey,
+  selectedDate: string,
+  selectedWeekStart: string,
+  selectedMonth: string
+): DashboardPeriodSelection {
   if (period === "this_week") {
-    const day = contextDate.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    const weekStart = new Date(contextDate);
-    weekStart.setHours(0, 0, 0, 0);
-    weekStart.setDate(contextDate.getDate() + mondayOffset);
-
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-
-    const totalMs = weekEnd.getTime() - weekStart.getTime();
-    const elapsedMs = Math.max(0, contextDate.getTime() - weekStart.getTime());
-
     return {
-      title: "Analisis de rendimiento hasta hoy",
-      description:
-        "El analisis considera los resultados acumulados de esta semana hasta hoy. Las comparaciones usan el mismo avance semanal, por ejemplo esta semana hasta hoy contra la semana anterior hasta este mismo dia.",
-      note:
-        "En Esta semana, las referencias se calculan hasta el mismo avance semanal. Por ejemplo: esta semana hasta martes vs semana anterior hasta martes.",
-      progressPercent: totalMs > 0 ? (elapsedMs / totalMs) * 100 : 0,
-      progressStartLabel: formatWeekdayDate(weekStart),
-      progressCurrentLabel: formatWeekdayDate(contextDate),
-      progressEndLabel: formatWeekdayDate(weekEnd),
-      progressCaption: `Corte actual: ${formatWeekdayDate(contextDate)}`
+      period,
+      week_start: selectedWeekStart
     };
   }
 
-  const monthStart = new Date(contextDate.getFullYear(), contextDate.getMonth(), 1);
-  const monthEnd = new Date(contextDate.getFullYear(), contextDate.getMonth() + 1, 0, 23, 59, 59, 999);
-  const totalMs = monthEnd.getTime() - monthStart.getTime();
-  const elapsedMs = Math.max(0, contextDate.getTime() - monthStart.getTime());
+  if (period === "month_to_date") {
+    return {
+      period,
+      month: selectedMonth
+    };
+  }
 
   return {
-    title: "Analisis de rendimiento hasta la fecha",
-    description:
-      "El analisis considera los resultados acumulados desde el inicio del mes hasta la fecha actual. Las comparaciones usan el mismo avance del mes, para evitar comparar un mes parcial contra un mes completo.",
-    note:
-      "En Mes en curso, las referencias se calculan hasta el mismo avance del mes. Por ejemplo: 1 al 12 de este mes vs 1 al 12 del mes anterior.",
-    progressPercent: totalMs > 0 ? (elapsedMs / totalMs) * 100 : 0,
+    period: "today",
+    date: selectedDate
+  };
+}
+
+function buildPeriodSelectionCacheKey(selection: DashboardPeriodSelection) {
+  return [selection.period, selection.date || "", selection.week_start || "", selection.month || ""].join("|");
+}
+
+function buildPeriodContext(
+  selection: DashboardPeriodSelection,
+  metadata: DashboardSummaryResponse["metadata"],
+  displayPeriodLabel: string,
+  periodRangeText: string
+): DashboardPeriodContext {
+  const contextDate = resolveContextDate(metadata);
+  const today = startOfLocalDay(contextDate);
+
+  if (selection.period === "today") {
+    const selectedDate = parseDateInputValue(selection.date) || today;
+    const isCurrentDay = isSameLocalDate(selectedDate, today);
+    const minutesElapsed = isCurrentDay ? contextDate.getHours() * 60 + contextDate.getMinutes() : 24 * 60;
+
+    return {
+      title: isCurrentDay ? "Análisis de rendimiento hasta esta hora" : `Análisis diario: ${displayPeriodLabel}`,
+      description: isCurrentDay
+        ? "El análisis considera los resultados acumulados de hoy hasta la hora actual. Las comparaciones se hacen contra otros días usando esta misma hora de corte, para evitar comparar un día parcial contra un día completo."
+        : "El análisis considera los resultados del día seleccionado. Las comparaciones usan cortes equivalentes para mantener una lectura comparable del día frente a sus referencias.",
+      note: periodRangeText
+        ? `Período analizado: ${periodRangeText}.`
+        : "Las comparaciones usan períodos diarios equivalentes definidos por el backend.",
+      progressPercent: (minutesElapsed / (24 * 60)) * 100,
+      progressStartLabel: "00:00",
+      progressCurrentLabel: isCurrentDay ? formatTime(contextDate) : "23:59",
+      progressEndLabel: "23:59",
+      progressCaption: isCurrentDay ? `Calculado hasta: ${formatTime(contextDate)}` : `Fecha seleccionada: ${formatSimpleDate(selection.date)}`
+    };
+  }
+
+  if (selection.period === "this_week") {
+    const selectedWeekStart = parseDateInputValue(selection.week_start) || getLocalWeekStart(today);
+    const currentWeekStart = getLocalWeekStart(today);
+    const isCurrentWeek = isSameLocalDate(selectedWeekStart, currentWeekStart);
+    const weekStart = selectedWeekStart;
+    const weekEnd = addDays(weekStart, 6);
+    const weekEndBoundary = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59, 999);
+    const referenceDay = isCurrentWeek ? contextDate : weekEndBoundary;
+    const totalMs = Math.max(weekEndBoundary.getTime() - weekStart.getTime(), 1);
+    const elapsedMs = Math.max(0, Math.min(referenceDay.getTime() - weekStart.getTime(), totalMs));
+
+    return {
+      title: isCurrentWeek ? "Análisis de rendimiento hasta hoy" : `Análisis semanal: ${displayPeriodLabel}`,
+      description: isCurrentWeek
+        ? "El análisis considera los resultados acumulados de esta semana hasta hoy. Las comparaciones usan el mismo avance semanal, por ejemplo esta semana hasta hoy contra la semana anterior hasta este mismo día."
+        : "El análisis considera los resultados de la semana seleccionada. Las comparaciones usan el mismo tramo semanal para evitar comparar avances distintos.",
+      note: periodRangeText
+        ? `Período analizado: ${periodRangeText}.`
+        : "Las comparaciones usan semanas equivalentes definidas por el backend.",
+      progressPercent: (elapsedMs / totalMs) * 100,
+      progressStartLabel: formatWeekdayDate(weekStart),
+      progressCurrentLabel: formatWeekdayDate(isCurrentWeek ? contextDate : weekEnd),
+      progressEndLabel: formatWeekdayDate(weekEnd),
+      progressCaption: periodRangeText ? `Rango: ${periodRangeText}` : `Semana desde ${formatSimpleDate(selection.week_start)}` 
+    };
+  }
+
+  const selectedMonth = parseMonthInputValue(selection.month) || new Date(today.getFullYear(), today.getMonth(), 1);
+  const isCurrentMonth = isSameLocalMonth(selectedMonth, today);
+  const monthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+  const monthEnd = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+  const referenceDate = isCurrentMonth ? contextDate : monthEnd;
+  const totalMs = Math.max(monthEnd.getTime() - monthStart.getTime(), 1);
+  const elapsedMs = Math.max(0, Math.min(referenceDate.getTime() - monthStart.getTime(), totalMs));
+
+  return {
+    title: isCurrentMonth ? "Análisis de rendimiento hasta la fecha" : `Análisis mensual: ${displayPeriodLabel}`,
+    description: isCurrentMonth
+      ? "El análisis considera los resultados acumulados desde el inicio del mes hasta la fecha actual. Las comparaciones usan el mismo avance del mes, para evitar comparar un mes parcial contra un mes completo."
+      : "El análisis considera los resultados del mes seleccionado. Las comparaciones usan el mismo avance o tramo mensual definido por el backend para mantener una lectura justa.",
+    note: periodRangeText
+      ? `Período analizado: ${periodRangeText}.`
+      : "Las comparaciones usan meses equivalentes definidos por el backend.",
+    progressPercent: (elapsedMs / totalMs) * 100,
     progressStartLabel: formatShortDate(monthStart),
-    progressCurrentLabel: formatShortDate(contextDate),
+    progressCurrentLabel: formatShortDate(isCurrentMonth ? contextDate : monthEnd),
     progressEndLabel: formatShortDate(monthEnd),
-    progressCaption: `Corte actual: ${formatWeekdayDate(contextDate)}`
+    progressCaption: periodRangeText ? `Rango: ${periodRangeText}` : `Mes seleccionado: ${selection.month || formatMonthInputValue(selectedMonth)}`
   };
 }
 
@@ -1009,7 +1213,20 @@ export function DashboardScreen() {
   const tenantId = searchParams.get("tenant_id")?.trim() || "";
   const token = searchParams.get("token")?.trim() || "";
   const periodFromUrl = (searchParams.get("period")?.trim() as DashboardPeriodKey | null) || null;
-  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriodKey>(periodFromUrl || "month_to_date");
+  const dateFromUrl = searchParams.get("date")?.trim() || "";
+  const weekStartFromUrl = searchParams.get("week_start")?.trim() || "";
+  const monthFromUrl = searchParams.get("month")?.trim() || "";
+  const baseReferenceDate = useMemo(() => startOfLocalDay(new Date()), []);
+  const currentDateValue = useMemo(() => formatDateInputValue(baseReferenceDate), [baseReferenceDate]);
+  const currentWeekStartValue = useMemo(
+    () => formatDateInputValue(getLocalWeekStart(baseReferenceDate)),
+    [baseReferenceDate]
+  );
+  const currentMonthValue = useMemo(() => formatMonthInputValue(baseReferenceDate), [baseReferenceDate]);
+  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriodKey>(periodFromUrl || "today");
+  const [selectedDate, setSelectedDate] = useState(dateFromUrl || currentDateValue);
+  const [selectedWeekStart, setSelectedWeekStart] = useState(weekStartFromUrl || currentWeekStartValue);
+  const [selectedMonth, setSelectedMonth] = useState(monthFromUrl || currentMonthValue);
   const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
   const [isPeriodChartInfoOpen, setIsPeriodChartInfoOpen] = useState(false);
   const [isHourlyAnalysisInfoOpen, setIsHourlyAnalysisInfoOpen] = useState(false);
@@ -1022,12 +1239,13 @@ export function DashboardScreen() {
   const [isOrdersDetailOpen, setIsOrdersDetailOpen] = useState(false);
   const [isOrdersDetailLoading, setIsOrdersDetailLoading] = useState(false);
   const [ordersDetailError, setOrdersDetailError] = useState<string | null>(null);
-  const [ordersDetailByPeriod, setOrdersDetailByPeriod] = useState<
-    Partial<Record<DashboardPeriodKey, DashboardOrdersDetailResponse>>
-  >({});
+  const [ordersDetailByPeriod, setOrdersDetailByPeriod] = useState<Record<string, DashboardOrdersDetailResponse>>({});
   const [data, setData] = useState<DashboardSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const dailyOptions = useMemo(() => getDailyOptions(baseReferenceDate), [baseReferenceDate]);
+  const weeklyOptions = useMemo(() => getWeeklyOptions(baseReferenceDate), [baseReferenceDate]);
+  const monthlyOptions = useMemo(() => getMonthlyOptions(baseReferenceDate), [baseReferenceDate]);
 
   useEffect(() => {
     if (periodFromUrl) {
@@ -1036,10 +1254,31 @@ export function DashboardScreen() {
   }, [periodFromUrl]);
 
   useEffect(() => {
+    setSelectedDate(dateFromUrl || currentDateValue);
+  }, [currentDateValue, dateFromUrl]);
+
+  useEffect(() => {
+    setSelectedWeekStart(weekStartFromUrl || currentWeekStartValue);
+  }, [currentWeekStartValue, weekStartFromUrl]);
+
+  useEffect(() => {
+    setSelectedMonth(monthFromUrl || currentMonthValue);
+  }, [currentMonthValue, monthFromUrl]);
+
+  const activePeriodSelection = useMemo(
+    () => buildActivePeriodSelection(selectedPeriod, selectedDate, selectedWeekStart, selectedMonth),
+    [selectedDate, selectedMonth, selectedPeriod, selectedWeekStart]
+  );
+  const activePeriodSelectionKey = useMemo(
+    () => buildPeriodSelectionCacheKey(activePeriodSelection),
+    [activePeriodSelection]
+  );
+
+  useEffect(() => {
     setIsOrdersDetailOpen(false);
     setIsOrdersDetailLoading(false);
     setOrdersDetailError(null);
-  }, [selectedPeriod]);
+  }, [activePeriodSelectionKey]);
 
   useEffect(() => {
     if (!tenantId || !token) {
@@ -1055,7 +1294,10 @@ export function DashboardScreen() {
 
     fetchDashboardSummary({
       tenantId,
-      period: selectedPeriod,
+      period: activePeriodSelection.period,
+      date: activePeriodSelection.date,
+      week_start: activePeriodSelection.week_start,
+      month: activePeriodSelection.month,
       token
     })
       .then((payload) => {
@@ -1079,7 +1321,7 @@ export function DashboardScreen() {
     return () => {
       active = false;
     };
-  }, [selectedPeriod, tenantId, token]);
+  }, [activePeriodSelection, tenantId, token]);
 
   const currency = getTenantCurrency(data?.tenant ?? "Dashboard", data?.metadata ?? null);
   const kpiCards = useMemo(
@@ -1122,12 +1364,7 @@ export function DashboardScreen() {
     [data?.survey_summary?.by_question, data?.survey_trends?.by_question]
   );
   const insights = useMemo(() => normalizeInsights(data?.insights ?? []), [data?.insights]);
-  const periodContext = useMemo(
-    () => buildPeriodContext(selectedPeriod, data?.metadata ?? null),
-    [data?.metadata, selectedPeriod]
-  );
   const salesGoal = data?.sales_goal ?? null;
-  const clampedProgressPercent = Math.min(Math.max(periodContext.progressPercent, 0), 100);
   const salesGoalTarget = toNumber(salesGoal?.target_amount);
   const salesGoalCurrent = toNumber(salesGoal?.current_amount) ?? 0;
   const salesGoalRemaining = toNumber(salesGoal?.remaining_amount);
@@ -1146,8 +1383,27 @@ export function DashboardScreen() {
   const displayPeriodLabel =
     data?.period?.label || PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label || selectedPeriod;
   const periodRangeText = data?.period?.range_text?.trim() || "";
+  const activeSelectorOptions =
+    selectedPeriod === "this_week"
+      ? weeklyOptions
+      : selectedPeriod === "month_to_date"
+        ? monthlyOptions
+        : dailyOptions;
+  const activeSelectorValue =
+    selectedPeriod === "this_week"
+      ? selectedWeekStart
+      : selectedPeriod === "month_to_date"
+        ? selectedMonth
+        : selectedDate;
+  const activeSelectorLabel =
+    activeSelectorOptions.find((option) => option.value === activeSelectorValue)?.label || activeSelectorValue;
+  const periodContext = useMemo(
+    () => buildPeriodContext(activePeriodSelection, data?.metadata ?? null, displayPeriodLabel, periodRangeText),
+    [activePeriodSelection, data?.metadata, displayPeriodLabel, periodRangeText]
+  );
   const surveyAverage = toNumber(data?.survey_summary?.general_stars_avg) ?? null;
   const surveyTotalAnswers = toNumber(data?.survey_summary?.total_answers) ?? 0;
+  const clampedProgressPercent = Math.min(Math.max(periodContext.progressPercent, 0), 100);
   const currentProgressLabelClassName = [
     "dashboard-period-progress-label-current",
     clampedProgressPercent <= 10 ? "dashboard-period-progress-label-current--start" : "",
@@ -1169,7 +1425,7 @@ export function DashboardScreen() {
       : data?.survey_trends?.period_grain === "month"
         ? "últimos 7 meses"
         : "últimos 7 días";
-  const currentOrdersDetail = ordersDetailByPeriod[selectedPeriod] ?? null;
+  const currentOrdersDetail = ordersDetailByPeriod[activePeriodSelectionKey] ?? null;
   const ordersDetailRows = useMemo(
     () => normalizeOrdersDetailRows(currentOrdersDetail?.orders ?? []),
     [currentOrdersDetail?.orders]
@@ -1193,13 +1449,16 @@ export function DashboardScreen() {
     try {
       const payload = await fetchDashboardOrdersDetail({
         tenantId,
-        period: selectedPeriod,
+        period: activePeriodSelection.period,
+        date: activePeriodSelection.date,
+        week_start: activePeriodSelection.week_start,
+        month: activePeriodSelection.month,
         token
       });
 
       setOrdersDetailByPeriod((current) => ({
         ...current,
-        [selectedPeriod]: payload
+        [activePeriodSelectionKey]: payload
       }));
     } catch (nextError) {
       const message =
@@ -1208,6 +1467,20 @@ export function DashboardScreen() {
     } finally {
       setIsOrdersDetailLoading(false);
     }
+  }
+
+  function handleHistoricalSelectionChange(nextValue: string) {
+    if (selectedPeriod === "this_week") {
+      setSelectedWeekStart(nextValue);
+      return;
+    }
+
+    if (selectedPeriod === "month_to_date") {
+      setSelectedMonth(nextValue);
+      return;
+    }
+
+    setSelectedDate(nextValue);
   }
 
   if (isLoading) {
@@ -1268,6 +1541,22 @@ export function DashboardScreen() {
               {option.label}
             </button>
           ))}
+        </section>
+
+        <section className="dashboard-period-selector" aria-label="Selector historico del dashboard">
+          <span className="dashboard-period-selector-label">Período</span>
+          <select
+            className="dashboard-period-select"
+            value={activeSelectorValue}
+            onChange={(event) => handleHistoricalSelectionChange(event.target.value)}
+          >
+            {activeSelectorOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <span className="dashboard-period-helper">{activeSelectorLabel}</span>
         </section>
 
         <section className="dashboard-card dashboard-period-context">
