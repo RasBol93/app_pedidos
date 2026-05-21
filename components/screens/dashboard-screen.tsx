@@ -52,6 +52,8 @@ type DashboardPeriodContext = {
   title: string;
   description: string;
   note: string;
+  isCurrent: boolean;
+  isClosed: boolean;
   progressPercent: number;
   progressStartLabel: string;
   progressCurrentLabel: string;
@@ -660,16 +662,20 @@ function normalizeSalesByHourChart(items: DashboardSeriesPoint[]): DashboardHour
     .sort((left, right) => parseHourLabel(left.label) - parseHourLabel(right.label));
 }
 
-function getHourlyAnalysisInfo(period: DashboardPeriodKey) {
+function getHourlyAnalysisInfo(period: DashboardPeriodKey, isCurrent: boolean) {
   if (period === "today") {
     return "Este análisis muestra las ventas pagadas y la cantidad de pedidos pagados por hora del día. Los montos están expresados en Bs.";
   }
 
   if (period === "this_week") {
-    return "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante la semana seleccionada. Los montos están expresados en Bs.";
+    return isCurrent
+      ? "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante la semana en curso. Los montos están expresados en Bs."
+      : "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante la semana seleccionada. Los montos están expresados en Bs.";
   }
 
-  return "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante el mes en curso. Los montos están expresados en Bs.";
+  return isCurrent
+    ? "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante el mes en curso. Los montos están expresados en Bs."
+    : "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante el mes seleccionado. Los montos están expresados en Bs.";
 }
 
 function normalizeTopProducts(items: DashboardTopProduct[]) {
@@ -988,14 +994,14 @@ function hasValidSurveyTrend(items: DashboardSurveyTrendRow[]) {
 
 function getSalesGoalTitle(period: DashboardPeriodKey) {
   if (period === "today") {
-    return "Objetivo de ventas de hoy";
+    return "Objetivo de ventas del día";
   }
 
   if (period === "this_week") {
-    return "Objetivo de ventas semanal";
+    return "Objetivo de ventas de la semana";
   }
 
-  return "Objetivo de ventas mensual";
+  return "Objetivo de ventas del mes";
 }
 
 function getSalesGoalToneClassName(achievementPercent: number | null | undefined) {
@@ -1022,12 +1028,16 @@ function getPeriodChartTitle(period: DashboardPeriodKey) {
   return period === "this_week" ? "Comportamiento de la semana" : "Comportamiento del mes";
 }
 
-function getPeriodChartInfo(period: DashboardPeriodKey) {
+function getPeriodChartInfo(period: DashboardPeriodKey, isCurrent: boolean) {
   if (period === "this_week") {
-    return "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos.";
+    return isCurrent
+      ? "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana en curso. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos."
+      : "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana seleccionada. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos.";
   }
 
-  return "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados durante el mes en curso según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos confirmados como pagados.";
+  return isCurrent
+    ? "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados durante el mes en curso según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos confirmados como pagados."
+    : "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados durante el mes seleccionado según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos confirmados como pagados.";
 }
 
 function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
@@ -1131,80 +1141,102 @@ function buildPeriodContext(
   selection: DashboardPeriodSelection,
   metadata: DashboardSummaryResponse["metadata"],
   displayPeriodLabel: string,
-  periodRangeText: string
+  periodRangeText: string,
+  periodContextResponse: DashboardSummaryResponse["period_context"]
 ): DashboardPeriodContext {
   const contextDate = resolveContextDate(metadata);
   const today = startOfLocalDay(contextDate);
+  const granularity =
+    periodContextResponse?.granularity ||
+    (selection.period === "this_week" ? "week" : selection.period === "month_to_date" ? "month" : "day");
+  const derivedIsCurrent =
+    selection.period === "today"
+      ? isSameLocalDate(parseDateInputValue(selection.date) || today, today)
+      : selection.period === "this_week"
+        ? isSameLocalDate(
+            parseDateInputValue(selection.week_start) || getLocalWeekStart(today),
+            getLocalWeekStart(today)
+          )
+        : isSameLocalMonth(
+            parseMonthInputValue(selection.month) || new Date(today.getFullYear(), today.getMonth(), 1),
+            today
+          );
+  const isCurrent = periodContextResponse?.is_current ?? derivedIsCurrent;
+  const isClosed = periodContextResponse?.is_closed ?? !isCurrent;
+  const completionLabel =
+    periodContextResponse?.completion_label?.trim() || (isClosed ? "Período completo" : "Datos hasta ahora");
 
-  if (selection.period === "today") {
+  if (granularity === "day") {
     const selectedDate = parseDateInputValue(selection.date) || today;
-    const isCurrentDay = isSameLocalDate(selectedDate, today);
-    const minutesElapsed = isCurrentDay ? contextDate.getHours() * 60 + contextDate.getMinutes() : 24 * 60;
+    const minutesElapsed = isCurrent ? contextDate.getHours() * 60 + contextDate.getMinutes() : 24 * 60;
 
     return {
-      title: isCurrentDay ? "Análisis de rendimiento hasta esta hora" : `Análisis diario: ${displayPeriodLabel}`,
-      description: isCurrentDay
-        ? "El análisis considera los resultados acumulados de hoy hasta la hora actual. Las comparaciones se hacen contra otros días usando esta misma hora de corte, para evitar comparar un día parcial contra un día completo."
-        : "El análisis considera los resultados del día seleccionado. Las comparaciones usan cortes equivalentes para mantener una lectura comparable del día frente a sus referencias.",
+      title: isCurrent ? "Reporte diario de hoy" : `Reporte diario del ${displayPeriodLabel}`,
+      description: isCurrent
+        ? "El análisis considera los resultados acumulados del día actual. Las comparaciones usan el mismo criterio comercial del dashboard para evitar contrastar un período parcial contra uno completo."
+        : "El análisis resume un día ya cerrado. Las comparaciones usan días equivalentes definidos por el backend para mantener una lectura justa del desempeño.",
       note: periodRangeText
         ? `Período analizado: ${periodRangeText}.`
         : "Las comparaciones usan períodos diarios equivalentes definidos por el backend.",
+      isCurrent,
+      isClosed,
       progressPercent: (minutesElapsed / (24 * 60)) * 100,
       progressStartLabel: "00:00",
-      progressCurrentLabel: isCurrentDay ? formatTime(contextDate) : "23:59",
+      progressCurrentLabel: isCurrent ? formatTime(contextDate) : "",
       progressEndLabel: "23:59",
-      progressCaption: isCurrentDay ? `Calculado hasta: ${formatTime(contextDate)}` : `Fecha seleccionada: ${formatSimpleDate(selection.date)}`
+      progressCaption: isCurrent ? `${completionLabel} · ${formatTime(contextDate)}` : completionLabel
     };
   }
 
-  if (selection.period === "this_week") {
+  if (granularity === "week") {
     const selectedWeekStart = parseDateInputValue(selection.week_start) || getLocalWeekStart(today);
-    const currentWeekStart = getLocalWeekStart(today);
-    const isCurrentWeek = isSameLocalDate(selectedWeekStart, currentWeekStart);
     const weekStart = selectedWeekStart;
     const weekEnd = addDays(weekStart, 6);
     const weekEndBoundary = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59, 999);
-    const referenceDay = isCurrentWeek ? contextDate : weekEndBoundary;
+    const referenceDay = isCurrent ? contextDate : weekEndBoundary;
     const totalMs = Math.max(weekEndBoundary.getTime() - weekStart.getTime(), 1);
     const elapsedMs = Math.max(0, Math.min(referenceDay.getTime() - weekStart.getTime(), totalMs));
 
     return {
-      title: isCurrentWeek ? "Análisis de rendimiento hasta hoy" : `Análisis semanal: ${displayPeriodLabel}`,
-      description: isCurrentWeek
-        ? "El análisis considera los resultados acumulados de esta semana hasta hoy. Las comparaciones usan el mismo avance semanal, por ejemplo esta semana hasta hoy contra la semana anterior hasta este mismo día."
-        : "El análisis considera los resultados de la semana seleccionada. Las comparaciones usan el mismo tramo semanal para evitar comparar avances distintos.",
+      title: isCurrent ? "Reporte semanal en curso" : "Reporte semanal",
+      description: isCurrent
+        ? "El análisis considera los resultados acumulados de la semana en curso. Las comparaciones usan el mismo criterio comercial del dashboard para mantener comparaciones equivalentes."
+        : "El análisis resume una semana ya cerrada. Las comparaciones usan semanas equivalentes definidas por el backend.",
       note: periodRangeText
         ? `Período analizado: ${periodRangeText}.`
         : "Las comparaciones usan semanas equivalentes definidas por el backend.",
+      isCurrent,
+      isClosed,
       progressPercent: (elapsedMs / totalMs) * 100,
       progressStartLabel: formatWeekdayDate(weekStart),
-      progressCurrentLabel: formatWeekdayDate(isCurrentWeek ? contextDate : weekEnd),
+      progressCurrentLabel: isCurrent ? formatWeekdayDate(contextDate) : "",
       progressEndLabel: formatWeekdayDate(weekEnd),
-      progressCaption: periodRangeText ? `Rango: ${periodRangeText}` : `Semana desde ${formatSimpleDate(selection.week_start)}` 
+      progressCaption: completionLabel
     };
   }
 
   const selectedMonth = parseMonthInputValue(selection.month) || new Date(today.getFullYear(), today.getMonth(), 1);
-  const isCurrentMonth = isSameLocalMonth(selectedMonth, today);
   const monthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
   const monthEnd = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-  const referenceDate = isCurrentMonth ? contextDate : monthEnd;
+  const referenceDate = isCurrent ? contextDate : monthEnd;
   const totalMs = Math.max(monthEnd.getTime() - monthStart.getTime(), 1);
   const elapsedMs = Math.max(0, Math.min(referenceDate.getTime() - monthStart.getTime(), totalMs));
 
   return {
-    title: isCurrentMonth ? "Análisis de rendimiento hasta la fecha" : `Análisis mensual: ${displayPeriodLabel}`,
-    description: isCurrentMonth
-      ? "El análisis considera los resultados acumulados desde el inicio del mes hasta la fecha actual. Las comparaciones usan el mismo avance del mes, para evitar comparar un mes parcial contra un mes completo."
-      : "El análisis considera los resultados del mes seleccionado. Las comparaciones usan el mismo avance o tramo mensual definido por el backend para mantener una lectura justa.",
+    title: isCurrent ? "Reporte mensual en curso" : `Reporte mensual de ${displayPeriodLabel}`,
+    description: isCurrent
+      ? "El análisis considera los resultados acumulados del mes en curso. Las comparaciones usan el mismo criterio comercial del dashboard para mantener una lectura consistente del avance."
+      : "El análisis resume un mes ya cerrado. Las comparaciones usan meses equivalentes definidos por el backend.",
     note: periodRangeText
       ? `Período analizado: ${periodRangeText}.`
       : "Las comparaciones usan meses equivalentes definidos por el backend.",
+    isCurrent,
+    isClosed,
     progressPercent: (elapsedMs / totalMs) * 100,
     progressStartLabel: formatShortDate(monthStart),
-    progressCurrentLabel: formatShortDate(isCurrentMonth ? contextDate : monthEnd),
+    progressCurrentLabel: isCurrent ? formatShortDate(contextDate) : "",
     progressEndLabel: formatShortDate(monthEnd),
-    progressCaption: periodRangeText ? `Rango: ${periodRangeText}` : `Mes seleccionado: ${selection.month || formatMonthInputValue(selectedMonth)}`
+    progressCaption: completionLabel
   };
 }
 
@@ -1397,9 +1429,17 @@ export function DashboardScreen() {
         : selectedDate;
   const activeSelectorLabel =
     activeSelectorOptions.find((option) => option.value === activeSelectorValue)?.label || activeSelectorValue;
+  const responsePeriodContext = data?.period_context ?? null;
   const periodContext = useMemo(
-    () => buildPeriodContext(activePeriodSelection, data?.metadata ?? null, displayPeriodLabel, periodRangeText),
-    [activePeriodSelection, data?.metadata, displayPeriodLabel, periodRangeText]
+    () =>
+      buildPeriodContext(
+        activePeriodSelection,
+        data?.metadata ?? null,
+        displayPeriodLabel,
+        periodRangeText,
+        responsePeriodContext
+      ),
+    [activePeriodSelection, data?.metadata, displayPeriodLabel, periodRangeText, responsePeriodContext]
   );
   const surveyAverage = toNumber(data?.survey_summary?.general_stars_avg) ?? null;
   const surveyTotalAnswers = toNumber(data?.survey_summary?.total_answers) ?? 0;
@@ -1419,12 +1459,30 @@ export function DashboardScreen() {
   const customerOrderPieBackground = buildPieChartBackground(customerOrderDistribution);
   const surveyOverallChart = buildSurveyPolylinePoints(surveyOverallTrend, 320, 132);
   const hasSurveyOverallTrend = hasValidSurveyTrend(surveyOverallTrend);
-  const surveyGrainLabel =
+  const isCurrentPeriod = responsePeriodContext?.is_current ?? periodContext.isCurrent;
+  const surveyTrendWindowLabel =
     data?.survey_trends?.period_grain === "week"
-      ? "últimas 7 semanas"
+      ? isCurrentPeriod
+        ? "Últimas 7 semanas"
+        : "Evolución hasta la semana seleccionada"
       : data?.survey_trends?.period_grain === "month"
-        ? "últimos 7 meses"
-        : "últimos 7 días";
+        ? isCurrentPeriod
+          ? "Últimos 7 meses"
+          : "Evolución hasta el mes seleccionado"
+        : isCurrentPeriod
+          ? "Últimos 7 días"
+          : "Evolución hasta el día seleccionado";
+  const ordersDetailCompletionLabel = responsePeriodContext?.completion_label?.trim() || "Período seleccionado";
+  const salesGoalDisplayTitle =
+    typeof salesGoal?.goal_label === "string" && salesGoal.goal_label.trim()
+      ? salesGoal.goal_label.trim()
+      : getSalesGoalTitle(selectedPeriod);
+  const salesGoalRemainingText =
+    typeof salesGoal?.remaining_label === "string" && salesGoal.remaining_label.trim()
+      ? salesGoal.remaining_label.trim()
+      : salesGoalRemaining !== undefined && salesGoalRemaining !== null
+        ? `${salesGoal?.is_goal_period_closed ? "Faltaron" : "Faltan"} ${formatCurrency(salesGoalRemaining, currency)} para llegar a la meta`
+        : "Meta en seguimiento";
   const currentOrdersDetail = ordersDetailByPeriod[activePeriodSelectionKey] ?? null;
   const ordersDetailRows = useMemo(
     () => normalizeOrdersDetailRows(currentOrdersDetail?.orders ?? []),
@@ -1668,7 +1726,7 @@ export function DashboardScreen() {
             <>
               <div className="dashboard-sales-goal-header">
                 <p className="eyebrow">Meta comercial</p>
-                <h2 className="dashboard-sales-goal-title">{getSalesGoalTitle(selectedPeriod)}</h2>
+                <h2 className="dashboard-sales-goal-title">{salesGoalDisplayTitle}</h2>
               </div>
               <div className="dashboard-sales-goal-body">
                 <div className="dashboard-sales-goal-main">
@@ -1692,11 +1750,7 @@ export function DashboardScreen() {
                       ) : null}
                     </>
                   ) : (
-                    <span>
-                      {salesGoalRemaining !== undefined && salesGoalRemaining !== null
-                        ? `Faltan ${formatCurrency(salesGoalRemaining, currency)} para llegar a la meta`
-                        : "Meta en seguimiento"}
-                    </span>
+                    <span>{salesGoalRemainingText}</span>
                   )}
                 </div>
               </div>
@@ -1735,7 +1789,7 @@ export function DashboardScreen() {
               </div>
               {isPeriodChartInfoOpen ? (
                 <div className="dashboard-period-chart-info">
-                  <p>{getPeriodChartInfo(selectedPeriod)}</p>
+                  <p>{getPeriodChartInfo(selectedPeriod, isCurrentPeriod)}</p>
                 </div>
               ) : null}
               {periodChartRows.length === 0 ? (
@@ -1785,7 +1839,7 @@ export function DashboardScreen() {
             </div>
             {isHourlyAnalysisInfoOpen ? (
               <div className="dashboard-hourly-info">
-                <p>{getHourlyAnalysisInfo(selectedPeriod)}</p>
+                <p>{getHourlyAnalysisInfo(selectedPeriod, isCurrentPeriod)}</p>
               </div>
             ) : null}
             {salesByHour.length === 0 ? (
@@ -2102,14 +2156,14 @@ export function DashboardScreen() {
             {isSurveyInfoOpen ? (
               <div className="dashboard-survey-info">
                 <p>
-                  Este bloque muestra el promedio de estrellas de las encuestas del periodo
-                  seleccionado y su evolucion en los {surveyGrainLabel}. Los periodos sin
+                  Este bloque muestra el promedio de estrellas de las encuestas del período
+                  seleccionado y su evolución en {surveyTrendWindowLabel}. Los períodos sin
                   respuestas no se cuentan como 0; simplemente aparecen sin dato.
                 </p>
               </div>
             ) : null}
             {surveyTotalAnswers <= 0 ? (
-              <p className="dashboard-survey-empty">Todavia no hay respuestas de encuesta en este periodo.</p>
+              <p className="dashboard-survey-empty">Todavía no hay respuestas de encuesta en este período.</p>
             ) : (
               <>
                 <div className="dashboard-survey-metrics">
@@ -2124,12 +2178,12 @@ export function DashboardScreen() {
                 </div>
 
                 <div className="dashboard-survey-trend">
-                  <h3 className="dashboard-customers-section-title">Evolucion general</h3>
+                  <h3 className="dashboard-customers-section-title">Evolución general</h3>
                   {!hasSurveyOverallTrend ? (
                     <p className="dashboard-survey-empty">Todavía no hay evolución suficiente para mostrar.</p>
                   ) : (
                     <div className="dashboard-survey-line-chart">
-                      <svg viewBox="0 0 320 132" role="img" aria-label="Evolucion general de encuestas">
+                      <svg viewBox="0 0 320 132" role="img" aria-label="Evolución general de encuestas">
                         {surveyOverallChart.segments.map((segment, index) => (
                           <path
                             key={`survey-segment-${index + 1}`}
@@ -2167,7 +2221,7 @@ export function DashboardScreen() {
 
                 <div className="dashboard-survey-question-list">
                   {surveyQuestionCards.length === 0 ? (
-                    <p className="dashboard-survey-empty">No hay preguntas con historial suficiente para mostrar evolucion.</p>
+                    <p className="dashboard-survey-empty">No hay preguntas con historial suficiente para mostrar evolución.</p>
                   ) : surveyQuestionCards.map((question) => {
                     const questionChart = buildSurveyPolylinePoints(question.trend, 320, 100);
                     const hasQuestionTrend = hasValidSurveyTrend(question.trend);
@@ -2186,7 +2240,7 @@ export function DashboardScreen() {
                           <p className="dashboard-survey-empty">No hay suficiente historial para esta pregunta.</p>
                         ) : (
                           <div className="dashboard-survey-line-chart dashboard-survey-line-chart--compact">
-                            <svg viewBox="0 0 320 100" role="img" aria-label={`Evolucion de ${question.title}`}>
+                            <svg viewBox="0 0 320 100" role="img" aria-label={`Evolución de ${question.title}`}>
                               {questionChart.segments.map((segment, index) => (
                                 <path
                                   key={`${question.id}-segment-${index + 1}`}
@@ -2264,10 +2318,10 @@ export function DashboardScreen() {
           {isOrdersDetailInfoOpen ? (
             <div className="dashboard-orders-detail-info">
               <p>
-                Esta tabla muestra los pedidos pagados del período seleccionado. El período sigue
-                el mismo criterio comercial del dashboard. La fecha y hora visible corresponden a
-                la confirmación de pago cuando existe; si no existe, se muestra la fecha de
-                creación del pedido.
+                {`Esta tabla muestra los pedidos pagados del período seleccionado (${ordersDetailCompletionLabel}). `}
+                El período sigue el mismo criterio comercial del dashboard. La fecha y hora
+                visible corresponden a la confirmación de pago cuando existe; si no existe, se
+                muestra la fecha de creación del pedido.
               </p>
             </div>
           ) : null}

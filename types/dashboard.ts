@@ -13,6 +13,15 @@ export type DashboardPeriodSelection = {
   month?: string;
 };
 
+export type DashboardPeriodContextResponse = {
+  granularity: "day" | "week" | "month" | string;
+  is_current: boolean;
+  is_closed: boolean;
+  tense: "present" | "past" | string;
+  completion_label: string;
+  [key: string]: unknown;
+};
+
 export type DashboardTenant = {
   tenant_id?: string;
   restaurant_name?: string;
@@ -222,6 +231,10 @@ export type DashboardSalesGoal = {
   remaining_amount: number | null;
   achievement_percent: number | null;
   status: "not_configured" | "behind" | "achieved" | string;
+  goal_period_label?: string;
+  goal_label?: string;
+  is_goal_period_closed?: boolean;
+  remaining_label?: string;
 };
 
 export type DashboardInsight =
@@ -237,6 +250,7 @@ export type DashboardSummaryResponse = {
   ok: boolean;
   tenant: DashboardTenant | string;
   period: DashboardPeriod;
+  period_context?: DashboardPeriodContextResponse | null;
   kpis: DashboardKpis;
   kpi_comparisons?: DashboardKpiComparisonMap | null;
   sales_goal?: DashboardSalesGoal | null;
