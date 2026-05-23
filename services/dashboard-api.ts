@@ -41,7 +41,7 @@ function normalizePeriod(period?: DashboardPeriodKey) {
   const value = period?.trim() || "today";
 
   if (!ALLOWED_PERIODS.has(value)) {
-    throw new DashboardApiError("Periodo de dashboard invalido.", 400);
+    throw new DashboardApiError("No pudimos cargar esta informacion. Intenta actualizar.", 400);
   }
 
   return value as DashboardPeriodKey;
@@ -72,6 +72,22 @@ function buildDashboardSelectionParams({
   return params;
 }
 
+function getFriendlyDashboardMessage(status: number) {
+  if (status === 401 || status === 403) {
+    return "No fue posible abrir el panel con este enlace.";
+  }
+
+  if (status === 404) {
+    return "No encontramos informacion para este periodo. Selecciona otro periodo para revisar sus resultados.";
+  }
+
+  if (status >= 500 || status === 429) {
+    return "El panel tardó más de lo esperado en cargar. Intenta actualizar en unos segundos.";
+  }
+
+  return "No pudimos cargar esta informacion. Intenta actualizar.";
+}
+
 async function parseDashboardJson<T>(response: Response): Promise<T> {
   const rawText = await response.text().catch(() => "");
   let payload:
@@ -90,16 +106,13 @@ async function parseDashboardJson<T>(response: Response): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new DashboardApiError(
-      payload?.error || payload?.message || payload?.detail || "No se pudo cargar el dashboard.",
-      response.status
-    );
+    throw new DashboardApiError(getFriendlyDashboardMessage(response.status), response.status);
   }
 
   if (payload && "ok" in payload && payload.ok === false) {
     throw new DashboardApiError(
-      payload.error || payload.message || payload.detail || "El backend rechazo la solicitud del dashboard.",
-      response.status
+      getFriendlyDashboardMessage(response.status || 500),
+      response.status || 500
     );
   }
 
@@ -118,12 +131,11 @@ export async function fetchDashboardSummary({
   const normalizedToken = token.trim();
   const normalizedPeriod = normalizePeriod(period);
 
-  if (!normalizedTenantId) {
-    throw new DashboardApiError("Falta tenant_id para cargar el dashboard.", 400);
-  }
-
-  if (!normalizedToken) {
-    throw new DashboardApiError("Falta token para cargar el dashboard.", 400);
+  if (!normalizedTenantId || !normalizedToken) {
+    throw new DashboardApiError(
+      "No se pudo abrir el panel. Verifica el enlace e intenta nuevamente.",
+      400
+    );
   }
 
   const params = buildDashboardSelectionParams({
@@ -147,7 +159,10 @@ export async function fetchDashboardSummary({
     return parseDashboardJson<DashboardSummaryResponse>(response);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new DashboardApiError("El dashboard tardó demasiado en responder.", 504);
+      throw new DashboardApiError(
+        "El panel tardó más de lo esperado en cargar. Intenta actualizar en unos segundos.",
+        504
+      );
     }
 
     throw error;
@@ -168,12 +183,11 @@ export async function fetchDashboardOrdersDetail({
   const normalizedToken = token.trim();
   const normalizedPeriod = normalizePeriod(period);
 
-  if (!normalizedTenantId) {
-    throw new DashboardApiError("Falta tenant_id para cargar los pedidos del dashboard.", 400);
-  }
-
-  if (!normalizedToken) {
-    throw new DashboardApiError("Falta token para cargar los pedidos del dashboard.", 400);
+  if (!normalizedTenantId || !normalizedToken) {
+    throw new DashboardApiError(
+      "No se pudo abrir el panel. Verifica el enlace e intenta nuevamente.",
+      400
+    );
   }
 
   const params = buildDashboardSelectionParams({
@@ -197,7 +211,10 @@ export async function fetchDashboardOrdersDetail({
     return parseDashboardJson<DashboardOrdersDetailResponse>(response);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new DashboardApiError("El detalle de pedidos tardó demasiado en responder.", 504);
+      throw new DashboardApiError(
+        "El panel tardó más de lo esperado en cargar. Intenta actualizar en unos segundos.",
+        504
+      );
     }
 
     throw error;

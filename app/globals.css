@@ -1792,6 +1792,7 @@ img {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  overflow-x: hidden;
 }
 
 .dashboard-header {
@@ -3162,6 +3163,22 @@ img {
   min-width: 0;
 }
 
+.dashboard-survey-line-chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-bottom: 4px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-survey-line-chart-inner {
+  display: grid;
+  gap: 10px;
+  width: max-content;
+  min-width: 100%;
+}
+
 .dashboard-survey-line-chart svg {
   width: 100%;
   height: auto;
@@ -3180,16 +3197,25 @@ img {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(28px, 1fr));
   gap: 8px;
-  min-width: 0;
+  width: max-content;
+  min-width: 100%;
 }
 
 .dashboard-survey-line-label {
   display: grid;
   gap: 2px;
+  min-width: 0;
   text-align: center;
 }
 
+.dashboard-survey-line-label span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .dashboard-survey-line-label span:last-child {
+  white-space: nowrap;
   font-size: 0.76rem;
 }
 

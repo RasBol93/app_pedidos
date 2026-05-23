@@ -156,13 +156,13 @@ const PERIOD_OPTIONS: Array<{ value: DashboardPeriodKey; label: string }> = [
 
 const KPI_METHODOLOGY: Record<DashboardKpiCard["key"], string> = {
   sales_total:
-    "Ventas totales suma el monto de los pedidos pagados dentro del período seleccionado. No incluye pedidos creados que todavía no fueron pagados. Las comparaciones usan períodos equivalentes según el período seleccionado.",
+    "Ventas del periodo suma el monto de los pedidos dentro del período seleccionado. No incluye pedidos creados que todavía no fueron pagados. Las comparaciones usan períodos equivalentes según el período seleccionado.",
   orders_paid:
-    "Pedidos pagados cuenta solo los pedidos confirmados como pagados dentro del período seleccionado. No incluye pedidos pendientes o no pagados.",
+    "Pedidos del periodo cuenta solo los pedidos del periodo dentro del período seleccionado. No incluye pedidos pendientes o no pagados.",
   avg_ticket:
-    "Ticket promedio se calcula dividiendo las ventas totales entre los pedidos pagados del período. Mide cuánto gasta en promedio cada cliente por pedido pagado.",
+    "Promedio por pedido se calcula dividiendo las ventas totales entre los pedidos del período. Mide cuánto gasta en promedio cada cliente por pedido.",
   unique_customers:
-    "Clientes únicos cuenta la cantidad de contactos distintos que hicieron pedidos pagados dentro del período. Si un cliente hizo varios pedidos, cuenta una sola vez."
+    "Clientes únicos cuenta la cantidad de contactos distintos que hicieron pedidos dentro del período. Si un cliente hizo varios pedidos, cuenta una sola vez."
 };
 
 const WEEK_DAY_LABELS = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] as const;
@@ -215,7 +215,7 @@ function startOfLocalDay(value: Date) {
 }
 
 function addDays(value: Date, amount: number) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate() + amount);
+  return addDaysLocal(value, amount);
 }
 
 function addMonths(value: Date, amount: number) {
@@ -223,24 +223,22 @@ function addMonths(value: Date, amount: number) {
 }
 
 function getLocalWeekStart(value: Date) {
-  const day = value.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  return startOfLocalDay(addDays(value, offset));
+  return startOfWeekMondayLocal(value);
 }
 
 function padDatePart(value: number) {
   return value.toString().padStart(2, "0");
 }
 
-function formatDateInputValue(value: Date) {
+function formatYmdLocal(value: Date) {
   return `${value.getFullYear()}-${padDatePart(value.getMonth() + 1)}-${padDatePart(value.getDate())}`;
 }
 
-function formatMonthInputValue(value: Date) {
+function formatMonthValueLocal(value: Date) {
   return `${value.getFullYear()}-${padDatePart(value.getMonth() + 1)}`;
 }
 
-function parseDateInputValue(value?: string) {
+function parseYmdLocal(value?: string) {
   if (!value) {
     return null;
   }
@@ -267,6 +265,32 @@ function parseDateInputValue(value?: string) {
   return date;
 }
 
+function formatDdMmYyyyLocal(value: Date) {
+  return `${padDatePart(value.getDate())}/${padDatePart(value.getMonth() + 1)}/${value.getFullYear()}`;
+}
+
+function addDaysLocal(value: Date, amount: number) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate() + amount);
+}
+
+function startOfWeekMondayLocal(value: Date) {
+  const day = value.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  return startOfLocalDay(addDaysLocal(value, offset));
+}
+
+function formatDateInputValue(value: Date) {
+  return formatYmdLocal(value);
+}
+
+function formatMonthInputValue(value: Date) {
+  return formatMonthValueLocal(value);
+}
+
+function parseDateInputValue(value?: string) {
+  return parseYmdLocal(value);
+}
+
 function parseMonthInputValue(value?: string) {
   if (!value) {
     return null;
@@ -287,6 +311,14 @@ function parseMonthInputValue(value?: string) {
   }
 
   return date;
+}
+
+function parseLocalDateLike(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  return parseYmdLocal(value) || parseYmdLocal(value.slice(0, 10));
 }
 
 function isSameLocalDate(left: Date, right: Date) {
@@ -315,17 +347,14 @@ function formatSimpleDate(value?: string) {
     return "";
   }
 
-  const date = new Date(value);
+  const localDate = parseLocalDateLike(value);
+  const date = localDate || new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return new Intl.DateTimeFormat("es-BO", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  }).format(date);
+  return localDate ? formatDdMmYyyyLocal(localDate) : formatDdMmYyyyLocal(date);
 }
 
 function formatCompactNumber(value: number) {
@@ -356,7 +385,7 @@ function formatItemCountLabel(value: number) {
 }
 
 function formatOrderCountLabel(value: number) {
-  return `${formatNumber(value)} ${value === 1 ? "pedido pagado" : "pedidos pagados"}`;
+  return `${formatNumber(value)} ${value === 1 ? "pedido" : "pedidos"}`;
 }
 
 function toNumber(value: unknown) {
@@ -529,7 +558,7 @@ function buildKpiCards(
   return [
     {
       key: "sales_total",
-      label: "Ventas totales",
+      label: "Ventas del periodo",
       value: formatCurrency(totalSales, currency),
       methodology: KPI_METHODOLOGY.sales_total,
       comparisons: buildComparisonItems("sales_total", comparisons?.sales_total, currency),
@@ -537,21 +566,21 @@ function buildKpiCards(
     },
     {
       key: "orders_paid",
-      label: "Pedidos pagados",
+      label: "Pedidos del periodo",
       value: formatNumber(paidOrders),
       methodology: KPI_METHODOLOGY.orders_paid,
       comparisons: buildComparisonItems("orders_paid", comparisons?.orders_paid, currency)
     },
     {
       key: "avg_ticket",
-      label: "Ticket promedio",
+      label: "Promedio por pedido",
       value: formatCurrency(averageTicket, currency),
       methodology: KPI_METHODOLOGY.avg_ticket,
       comparisons: buildComparisonItems("avg_ticket", comparisons?.avg_ticket, currency)
     },
     {
       key: "unique_customers",
-      label: "Clientes unicos",
+      label: "Clientes del periodo",
       value: formatNumber(uniqueCustomers),
       methodology: KPI_METHODOLOGY.unique_customers,
       comparisons: buildComparisonItems("unique_customers", comparisons?.unique_customers, currency)
@@ -592,7 +621,7 @@ function getWeekdayIndexFromRecord(record: Record<string, unknown>) {
   const dateText = getRecordText(record, ["date"]);
 
   if (dateText) {
-    const date = new Date(dateText);
+    const date = parseLocalDateLike(dateText) || new Date(dateText);
     if (!Number.isNaN(date.getTime())) {
       const day = date.getDay();
       return day === 0 ? 6 : day - 1;
@@ -664,18 +693,18 @@ function normalizeSalesByHourChart(items: DashboardSeriesPoint[]): DashboardHour
 
 function getHourlyAnalysisInfo(period: DashboardPeriodKey, isCurrent: boolean) {
   if (period === "today") {
-    return "Este análisis muestra las ventas pagadas y la cantidad de pedidos pagados por hora del día. Los montos están expresados en Bs.";
+    return "Este análisis muestra las ventas y la cantidad de pedidos por hora del día. Los montos están expresados en Bs.";
   }
 
   if (period === "this_week") {
     return isCurrent
-      ? "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante la semana en curso. Los montos están expresados en Bs."
-      : "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante la semana seleccionada. Los montos están expresados en Bs.";
+      ? "Este análisis muestra cómo se distribuyen las ventas y pedidos por hora durante la semana en curso. Los montos están expresados en Bs."
+      : "Este análisis muestra cómo se distribuyen las ventas y pedidos por hora durante la semana seleccionada. Los montos están expresados en Bs.";
   }
 
   return isCurrent
-    ? "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante el mes en curso. Los montos están expresados en Bs."
-    : "Este análisis muestra cómo se distribuyen las ventas pagadas y pedidos pagados por hora durante el mes seleccionado. Los montos están expresados en Bs.";
+    ? "Este análisis muestra cómo se distribuyen las ventas y pedidos por hora durante el mes en curso. Los montos están expresados en Bs."
+    : "Este análisis muestra cómo se distribuyen las ventas y pedidos por hora durante el mes seleccionado. Los montos están expresados en Bs.";
 }
 
 function normalizeTopProducts(items: DashboardTopProduct[]) {
@@ -800,7 +829,7 @@ function normalizeTopRecurrentCustomers(items: TopRecurrentCustomer[]): Dashboar
     .sort((left, right) => right.orders - left.orders);
 }
 
-function normalizeInsights(insights: DashboardInsight[]) {
+function normalizeResumen(insights: DashboardInsight[]) {
   return insights
     .map((entry) => {
       if (typeof entry === "string") {
@@ -851,12 +880,50 @@ function formatSurveyScore(value: number | null | undefined) {
   }).format(value)} ★`;
 }
 
-function normalizeSurveyTrendRows(items: DashboardSurveyTrendPoint[] | undefined | null): DashboardSurveyTrendRow[] {
+function formatSurveyTrendLabel(
+  point: DashboardSurveyTrendPoint | Record<string, unknown>,
+  periodGrain: string | undefined
+) {
+  const record = point as Record<string, unknown>;
+  const startText = getRecordText(record, ["start"]);
+  const startDate = parseYmdLocal(startText?.slice(0, 10));
+
+  if (periodGrain === "week" && startDate) {
+    return `Sem ${padDatePart(startDate.getDate())}/${padDatePart(startDate.getMonth() + 1)}`;
+  }
+
+  if (periodGrain === "month" && startDate) {
+    const shortMonth = new Intl.DateTimeFormat("es-BO", {
+      month: "short"
+    })
+      .format(startDate)
+      .replace(".", "");
+
+    return `${shortMonth.charAt(0).toUpperCase() + shortMonth.slice(1)}/${String(startDate.getFullYear()).slice(-2)}`;
+  }
+
+  if (periodGrain === "day" && startDate) {
+    return `${padDatePart(startDate.getDate())}/${padDatePart(startDate.getMonth() + 1)}`;
+  }
+
+  return getRecordText(record, ["label"]) || "P";
+}
+
+function getSurveyChartWidth(pointCount: number, compact = false) {
+  const minPointWidth = compact ? 84 : 92;
+  const baseWidth = compact ? 340 : 380;
+  return Math.max(baseWidth, pointCount * minPointWidth);
+}
+
+function normalizeSurveyTrendRows(
+  items: DashboardSurveyTrendPoint[] | undefined | null,
+  periodGrain?: string
+): DashboardSurveyTrendRow[] {
   return (items ?? []).slice(-7).map((item, index) => {
     const record = item as Record<string, unknown>;
     return {
       id: `${getRecordText(record, ["label", "start", "end"]) || `survey-trend-${index + 1}`}-${index + 1}`,
-      label: getRecordText(record, ["label"]) || `P${index + 1}`,
+      label: formatSurveyTrendLabel(record, periodGrain) || `P${index + 1}`,
       avg: getRecordNumber(record, ["avg"]) ?? null,
       count: getRecordNumber(record, ["count"]) ?? 0
     };
@@ -865,7 +932,8 @@ function normalizeSurveyTrendRows(items: DashboardSurveyTrendPoint[] | undefined
 
 function normalizeSurveyQuestionCards(
   summaryItems: DashboardSurveyQuestionSummary[] | undefined | null,
-  trendItems: DashboardSurveyQuestionTrend[] | undefined | null
+  trendItems: DashboardSurveyQuestionTrend[] | undefined | null,
+  periodGrain?: string
 ): DashboardSurveyQuestionCard[] {
   const summaryList = Array.isArray(summaryItems) ? summaryItems : [];
   const trendList = Array.isArray(trendItems) ? trendItems : [];
@@ -925,7 +993,8 @@ function normalizeSurveyQuestionCards(
           null,
         count,
         trend: normalizeSurveyTrendRows(
-          Array.isArray(trendRecord.trend) ? (trendRecord.trend as DashboardSurveyTrendPoint[]) : []
+          Array.isArray(trendRecord.trend) ? (trendRecord.trend as DashboardSurveyTrendPoint[]) : [],
+          periodGrain
         ),
         hasResponses: count > 0
       };
@@ -1031,13 +1100,13 @@ function getPeriodChartTitle(period: DashboardPeriodKey) {
 function getPeriodChartInfo(period: DashboardPeriodKey, isCurrent: boolean) {
   if (period === "this_week") {
     return isCurrent
-      ? "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana en curso. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos."
-      : "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados por día de la semana seleccionada. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos.";
+      ? "Este gráfico muestra las ventas y la cantidad de pedidos por día de la semana en curso. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos."
+      : "Este gráfico muestra las ventas y la cantidad de pedidos por día de la semana seleccionada. Los montos están expresados en Bs. Los días sin actividad se muestran con Bs 0 y 0 pedidos.";
   }
 
   return isCurrent
-    ? "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados durante el mes en curso según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos confirmados como pagados."
-    : "Este gráfico muestra las ventas pagadas y la cantidad de pedidos pagados durante el mes seleccionado según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos confirmados como pagados.";
+    ? "Este gráfico muestra las ventas y la cantidad de pedidos durante el mes en curso según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos del periodo."
+    : "Este gráfico muestra las ventas y la cantidad de pedidos durante el mes seleccionado según los datos disponibles. Los montos están expresados en Bs. Solo se consideran pedidos del periodo.";
 }
 
 function resolveContextDate(metadata: DashboardSummaryResponse["metadata"]) {
@@ -1173,11 +1242,11 @@ function buildPeriodContext(
     return {
       title: isCurrent ? "Reporte diario de hoy" : `Reporte diario del ${displayPeriodLabel}`,
       description: isCurrent
-        ? "El análisis considera los resultados acumulados del día actual. Las comparaciones usan el mismo criterio comercial del dashboard para evitar contrastar un período parcial contra uno completo."
-        : "El análisis resume un día ya cerrado. Las comparaciones usan días equivalentes definidos por el backend para mantener una lectura justa del desempeño.",
+        ? "Este reporte muestra el desempeño acumulado del día actual."
+        : "Este reporte resume un día ya cerrado.",
       note: periodRangeText
         ? `Período analizado: ${periodRangeText}.`
-        : "Las comparaciones usan períodos diarios equivalentes definidos por el backend.",
+        : "Las comparaciones muestran períodos diarios equivalentes.",
       isCurrent,
       isClosed,
       progressPercent: (minutesElapsed / (24 * 60)) * 100,
@@ -1200,11 +1269,11 @@ function buildPeriodContext(
     return {
       title: isCurrent ? "Reporte semanal en curso" : "Reporte semanal",
       description: isCurrent
-        ? "El análisis considera los resultados acumulados de la semana en curso. Las comparaciones usan el mismo criterio comercial del dashboard para mantener comparaciones equivalentes."
-        : "El análisis resume una semana ya cerrada. Las comparaciones usan semanas equivalentes definidas por el backend.",
+        ? "Este reporte muestra el desempeño acumulado de la semana en curso."
+        : "Este reporte resume una semana ya cerrada.",
       note: periodRangeText
         ? `Período analizado: ${periodRangeText}.`
-        : "Las comparaciones usan semanas equivalentes definidas por el backend.",
+        : "Las comparaciones muestran semanas equivalentes.",
       isCurrent,
       isClosed,
       progressPercent: (elapsedMs / totalMs) * 100,
@@ -1225,11 +1294,11 @@ function buildPeriodContext(
   return {
     title: isCurrent ? "Reporte mensual en curso" : `Reporte mensual de ${displayPeriodLabel}`,
     description: isCurrent
-      ? "El análisis considera los resultados acumulados del mes en curso. Las comparaciones usan el mismo criterio comercial del dashboard para mantener una lectura consistente del avance."
-      : "El análisis resume un mes ya cerrado. Las comparaciones usan meses equivalentes definidos por el backend.",
+      ? "Este reporte muestra el desempeño acumulado del mes en curso."
+      : "Este reporte resume un mes ya cerrado.",
     note: periodRangeText
       ? `Período analizado: ${periodRangeText}.`
-      : "Las comparaciones usan meses equivalentes definidos por el backend.",
+      : "Las comparaciones muestran meses equivalentes.",
     isCurrent,
     isClosed,
     progressPercent: (elapsedMs / totalMs) * 100,
@@ -1255,10 +1324,26 @@ export function DashboardScreen() {
     [baseReferenceDate]
   );
   const currentMonthValue = useMemo(() => formatMonthInputValue(baseReferenceDate), [baseReferenceDate]);
+  const normalizeSelectedDateValue = (value?: string) => {
+    const normalized = value?.trim() || "";
+    return parseDateInputValue(normalized) ? normalized : currentDateValue;
+  };
+  const normalizeSelectedWeekStartValue = (value?: string) => {
+    const normalized = value?.trim() || "";
+    const parsed = parseDateInputValue(normalized);
+    if (!parsed) {
+      return currentWeekStartValue;
+    }
+    return isSameLocalDate(parsed, getLocalWeekStart(parsed)) ? formatDateInputValue(parsed) : currentWeekStartValue;
+  };
+  const normalizeSelectedMonthValue = (value?: string) => {
+    const normalized = value?.trim() || "";
+    return parseMonthInputValue(normalized) ? normalized : currentMonthValue;
+  };
   const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriodKey>(periodFromUrl || "today");
-  const [selectedDate, setSelectedDate] = useState(dateFromUrl || currentDateValue);
-  const [selectedWeekStart, setSelectedWeekStart] = useState(weekStartFromUrl || currentWeekStartValue);
-  const [selectedMonth, setSelectedMonth] = useState(monthFromUrl || currentMonthValue);
+  const [selectedDate, setSelectedDate] = useState(normalizeSelectedDateValue(dateFromUrl));
+  const [selectedWeekStart, setSelectedWeekStart] = useState(normalizeSelectedWeekStartValue(weekStartFromUrl));
+  const [selectedMonth, setSelectedMonth] = useState(normalizeSelectedMonthValue(monthFromUrl));
   const [openMethodology, setOpenMethodology] = useState<Record<string, boolean>>({});
   const [isPeriodChartInfoOpen, setIsPeriodChartInfoOpen] = useState(false);
   const [isHourlyAnalysisInfoOpen, setIsHourlyAnalysisInfoOpen] = useState(false);
@@ -1286,15 +1371,15 @@ export function DashboardScreen() {
   }, [periodFromUrl]);
 
   useEffect(() => {
-    setSelectedDate(dateFromUrl || currentDateValue);
+    setSelectedDate(normalizeSelectedDateValue(dateFromUrl));
   }, [currentDateValue, dateFromUrl]);
 
   useEffect(() => {
-    setSelectedWeekStart(weekStartFromUrl || currentWeekStartValue);
+    setSelectedWeekStart(normalizeSelectedWeekStartValue(weekStartFromUrl));
   }, [currentWeekStartValue, weekStartFromUrl]);
 
   useEffect(() => {
-    setSelectedMonth(monthFromUrl || currentMonthValue);
+    setSelectedMonth(normalizeSelectedMonthValue(monthFromUrl));
   }, [currentMonthValue, monthFromUrl]);
 
   const activePeriodSelection = useMemo(
@@ -1315,7 +1400,7 @@ export function DashboardScreen() {
   useEffect(() => {
     if (!tenantId || !token) {
       setIsLoading(false);
-      setError(!tenantId ? "Falta tenant_id en la URL del dashboard." : "Falta token en la URL del dashboard.");
+      setError("No se pudo abrir el panel. Verifica el enlace e intenta nuevamente.");
       setData(null);
       return;
     }
@@ -1384,18 +1469,19 @@ export function DashboardScreen() {
     [data?.top_recurrent_customers]
   );
   const surveyOverallTrend = useMemo(
-    () => normalizeSurveyTrendRows(data?.survey_trends?.overall ?? []),
-    [data?.survey_trends?.overall]
+    () => normalizeSurveyTrendRows(data?.survey_trends?.overall ?? [], data?.survey_trends?.period_grain),
+    [data?.survey_trends?.overall, data?.survey_trends?.period_grain]
   );
   const surveyQuestionCards = useMemo(
     () =>
       normalizeSurveyQuestionCards(
         data?.survey_summary?.by_question ?? [],
-        data?.survey_trends?.by_question ?? []
+        data?.survey_trends?.by_question ?? [],
+        data?.survey_trends?.period_grain
       ),
-    [data?.survey_summary?.by_question, data?.survey_trends?.by_question]
+    [data?.survey_summary?.by_question, data?.survey_trends?.by_question, data?.survey_trends?.period_grain]
   );
-  const insights = useMemo(() => normalizeInsights(data?.insights ?? []), [data?.insights]);
+  const insights = useMemo(() => normalizeResumen(data?.insights ?? []), [data?.insights]);
   const salesGoal = data?.sales_goal ?? null;
   const salesGoalTarget = toNumber(salesGoal?.target_amount);
   const salesGoalCurrent = toNumber(salesGoal?.current_amount) ?? 0;
@@ -1457,7 +1543,8 @@ export function DashboardScreen() {
   const categoryPieBackground = buildPieChartBackground(categories);
   const orderBehaviorPieBackground = buildPieChartBackground(orderItemDistribution);
   const customerOrderPieBackground = buildPieChartBackground(customerOrderDistribution);
-  const surveyOverallChart = buildSurveyPolylinePoints(surveyOverallTrend, 320, 132);
+  const surveyOverallChartWidth = getSurveyChartWidth(surveyOverallTrend.length);
+  const surveyOverallChart = buildSurveyPolylinePoints(surveyOverallTrend, surveyOverallChartWidth, 132);
   const hasSurveyOverallTrend = hasValidSurveyTrend(surveyOverallTrend);
   const isCurrentPeriod = responsePeriodContext?.is_current ?? periodContext.isCurrent;
   const surveyTrendWindowLabel =
@@ -1483,6 +1570,20 @@ export function DashboardScreen() {
       : salesGoalRemaining !== undefined && salesGoalRemaining !== null
         ? `${salesGoal?.is_goal_period_closed ? "Faltaron" : "Faltan"} ${formatCurrency(salesGoalRemaining, currency)} para llegar a la meta`
         : "Meta en seguimiento";
+  const surveyTrendWindowCopy =
+    data?.survey_trends?.period_grain === "week"
+      ? isCurrentPeriod
+        ? "Últimas 7 semanas"
+        : "Evolución hasta la semana seleccionada"
+      : data?.survey_trends?.period_grain === "month"
+        ? isCurrentPeriod
+          ? "Últimos 7 meses"
+          : "Evolución hasta el mes seleccionado"
+        : isCurrentPeriod
+          ? "Últimos 7 días"
+          : "Evolución hasta el día seleccionado";
+  const ordersDetailCompletionCopy =
+    responsePeriodContext?.completion_label?.trim() || "Período seleccionado";
   const currentOrdersDetail = ordersDetailByPeriod[activePeriodSelectionKey] ?? null;
   const ordersDetailRows = useMemo(
     () => normalizeOrdersDetailRows(currentOrdersDetail?.orders ?? []),
@@ -1561,8 +1662,8 @@ export function DashboardScreen() {
     return (
       <PageShell>
         <EmptyState
-          title="No hay datos del dashboard"
-          message="No encontramos informacion para el periodo seleccionado."
+          title="No encontramos informacion para este periodo"
+          message="No encontramos informacion para este periodo. Selecciona otro periodo para revisar sus resultados."
         />
       </PageShell>
     );
@@ -1573,18 +1674,18 @@ export function DashboardScreen() {
       <div className="dashboard-shell">
         <section className="dashboard-header">
           <div className="dashboard-header-copy">
-            <p className="eyebrow">Dashboard</p>
+            <p className="eyebrow">Panel de resultados</p>
             <h1>{getTenantName(data.tenant)}</h1>
-            <p className="dashboard-subtitle">Resumen operativo del negocio para tomar decisiones rapidas.</p>
+            <p className="dashboard-subtitle">Resumen del periodo para seguir las ventas, pedidos, clientes y encuestas.</p>
           </div>
           <div className="dashboard-header-meta">
             <span className="dashboard-period-chip">
               {displayPeriodLabel}
             </span>
             <span className="dashboard-updated-at">
-              Actualizado: {formatGeneratedAt(data.metadata?.generated_at)}
+              Informacion actualizada: {formatGeneratedAt(data.metadata?.generated_at)}
             </span>
-            {periodRangeText ? <span className="dashboard-updated-at">Periodo: {periodRangeText}</span> : null}
+            {periodRangeText ? <span className="dashboard-updated-at">Periodo seleccionado: {periodRangeText}</span> : null}
           </div>
         </section>
 
@@ -1601,7 +1702,7 @@ export function DashboardScreen() {
           ))}
         </section>
 
-        <section className="dashboard-period-selector" aria-label="Selector historico del dashboard">
+        <section className="dashboard-period-selector" aria-label="Selector historico del periodo">
           <span className="dashboard-period-selector-label">Período</span>
           <select
             className="dashboard-period-select"
@@ -1620,7 +1721,7 @@ export function DashboardScreen() {
         <section className="dashboard-card dashboard-period-context">
           <div className="dashboard-period-context-header">
             <div>
-              <p className="eyebrow">Contexto del periodo</p>
+              <p className="eyebrow">Informacion del periodo seleccionado</p>
               <h2>{periodContext.title}</h2>
             </div>
             <span className="dashboard-period-context-caption">{periodContext.progressCaption}</span>
@@ -1660,7 +1761,7 @@ export function DashboardScreen() {
                 <button
                   type="button"
                   className="dashboard-kpi-info-button"
-                  aria-label={`Explicacion metodologica de ${card.label}`}
+                  aria-label={`Como se calcula ${card.label}`}
                   aria-expanded={openMethodology[card.key] ? "true" : "false"}
                   onClick={() =>
                     setOpenMethodology((current) => ({
@@ -1693,7 +1794,7 @@ export function DashboardScreen() {
                       </div>
                       <div className="dashboard-mini-bars" aria-label={`Comparacion ${comparison.label}`}>
                         <div className="dashboard-mini-bar-row">
-                          <span>Actual</span>
+                          <span>Periodo actual</span>
                           <div className="dashboard-mini-bar-track">
                             <div
                               className="dashboard-mini-bar-fill dashboard-mini-bar-fill--actual"
@@ -1703,7 +1804,7 @@ export function DashboardScreen() {
                           <strong>{comparison.currentValueLabel}</strong>
                         </div>
                         <div className="dashboard-mini-bar-row">
-                          <span>Ref.</span>
+                          <span>Comparacion</span>
                           <div className="dashboard-mini-bar-track">
                             <div
                               className="dashboard-mini-bar-fill dashboard-mini-bar-fill--reference"
@@ -1794,7 +1895,7 @@ export function DashboardScreen() {
               ) : null}
               {periodChartRows.length === 0 ? (
                 <p className="dashboard-empty-copy">
-                  Aun no hay datos de comportamiento para este periodo.
+                  No encontramos informacion para este periodo.
                 </p>
               ) : (
                 <div className="dashboard-period-bars" aria-label={getPeriodChartTitle(selectedPeriod)}>
@@ -1825,7 +1926,7 @@ export function DashboardScreen() {
             <div className="dashboard-hourly-header">
               <div>
                 <p className="eyebrow">Horas</p>
-                <h2 className="dashboard-hourly-title">Analisis horario</h2>
+                <h2 className="dashboard-hourly-title">Ventas por hora</h2>
               </div>
               <button
                 type="button"
@@ -1843,10 +1944,10 @@ export function DashboardScreen() {
               </div>
             ) : null}
             {salesByHour.length === 0 ? (
-              <p className="dashboard-empty-copy">Aun no hay ventas por hora para este periodo.</p>
+              <p className="dashboard-empty-copy">No encontramos informacion para este periodo.</p>
             ) : (
               <div className="dashboard-hourly-scroll">
-                <div className="dashboard-hourly-bars" aria-label="Analisis horario">
+                <div className="dashboard-hourly-bars" aria-label="Ventas por hora">
                   {salesByHour.map((item) => (
                     <div key={item.id} className="dashboard-hourly-column">
                       <div className="dashboard-hourly-meta">
@@ -1918,14 +2019,14 @@ export function DashboardScreen() {
             {isCategoryInfoOpen ? (
               <div className="dashboard-pie-info">
                 <p>
-                  Este grafico muestra que porcentaje de las ventas pagadas corresponde a cada rubro o
+                  Este grafico muestra que porcentaje de las ventas corresponde a cada rubro o
                   categoria. El calculo usa el monto vendido en Bs por categoria sobre el total vendido
                   del periodo. Tambien se muestra la cantidad de pedidos asociados a cada rubro.
                 </p>
               </div>
             ) : null}
             {categories.length === 0 ? (
-              <p className="dashboard-empty-copy">Aun no hay categorias con actividad en este periodo.</p>
+              <p className="dashboard-empty-copy">No encontramos categorias con movimiento en este periodo.</p>
             ) : (
               <div className="dashboard-pie-layout">
                 <div
@@ -1973,15 +2074,15 @@ export function DashboardScreen() {
             {isOrderBehaviorInfoOpen ? (
               <div className="dashboard-pie-info">
                 <p>
-                  Este grafico muestra como se distribuyen los pedidos pagados segun la cantidad de
+                  Este grafico muestra como se distribuyen los pedidos segun la cantidad de
                   items incluidos en cada pedido. Por ejemplo, un pedido con una hamburguesa y unas
-                  papas cuenta como 2 items. El porcentaje se calcula sobre el total de pedidos pagados
+                  papas cuenta como 2 items. El porcentaje se calcula sobre el total de pedidos
                   del periodo.
                 </p>
               </div>
             ) : null}
             {orderItemDistribution.length === 0 ? (
-              <p className="dashboard-empty-copy">Aun no hay pedidos suficientes para analizar este periodo.</p>
+              <p className="dashboard-empty-copy">No encontramos suficientes pedidos para este periodo.</p>
             ) : (
               <div className="dashboard-pie-layout">
                 <div
@@ -2036,7 +2137,7 @@ export function DashboardScreen() {
               </div>
             ) : null}
             {topOrderCombinations.length === 0 ? (
-              <p className="dashboard-empty-copy">Todavia no hay combinaciones de productos repetidas en este periodo.</p>
+              <p className="dashboard-empty-copy">Aun no hay combinaciones repetidas en este periodo.</p>
             ) : (
               <div className="dashboard-combination-list">
                 {topOrderCombinations.slice(0, 5).map((item, index) => (
@@ -2073,28 +2174,28 @@ export function DashboardScreen() {
             {isCustomersInfoOpen ? (
               <div className="dashboard-customers-info">
                 <p>
-                  Este bloque clasifica los pedidos pagados del periodo segun el historial del cliente.
-                  Un cliente nuevo es un contacto que hace su primer pedido pagado conocido dentro de
+                  Este bloque clasifica los pedidos del periodo segun el historial del cliente.
+                  Un cliente nuevo es un contacto que hace su primer pedido conocido dentro de
                   este periodo. <strong>Un cliente recurrente es un cliente que ya habia hecho al menos
-                  un pedido pagado en cualquier momento anterior, no solo dentro de este periodo.</strong>{" "}
+                  un pedido en cualquier momento anterior, no solo dentro de este periodo.</strong>{" "}
                   Los pedidos sin telefono o contacto confiable se muestran como sin identificar. El
-                  calculo usa solo pedidos pagados del periodo.
+                  calculo usa solo pedidos del periodo.
                 </p>
               </div>
             ) : null}
             <div className="dashboard-customers-layout">
               <div className="dashboard-customers-pie-block">
-                <h3 className="dashboard-customers-section-title">Pedidos nuevos vs recurrentes</h3>
+                <h3 className="dashboard-customers-section-title">Origen de los pedidos</h3>
                 {customerOrderDistribution.length === 0 ? (
                   <p className="dashboard-empty-copy">
-                    No hay suficientes datos de clientes para clasificar pedidos nuevos y recurrentes.
+                    No encontramos informacion suficiente de clientes para este periodo.
                   </p>
                 ) : (
                   <>
                     <div
                       className="dashboard-customers-pie"
                       style={{ backgroundImage: customerOrderPieBackground }}
-                      aria-label="Distribucion de pedidos nuevos y recurrentes"
+                      aria-label="Origen de los pedidos del periodo"
                     />
                     <div className="dashboard-customers-legend">
                       {customerOrderDistribution.map((item) => (
@@ -2118,9 +2219,9 @@ export function DashboardScreen() {
               </div>
 
               <div className="dashboard-customer-repeat-block">
-                <h3 className="dashboard-customers-section-title">Top 3 clientes recurrentes</h3>
+                <h3 className="dashboard-customers-section-title">Top 3 clientes del periodo</h3>
                 {topRecurrentCustomers.length === 0 ? (
-                  <p className="dashboard-empty-copy">Todavia no hay clientes recurrentes en este periodo.</p>
+                  <p className="dashboard-empty-copy">No encontramos clientes destacados en este periodo.</p>
                 ) : (
                   <div className="dashboard-customer-repeat-list">
                     {topRecurrentCustomers.slice(0, 3).map((item) => (
@@ -2157,7 +2258,7 @@ export function DashboardScreen() {
               <div className="dashboard-survey-info">
                 <p>
                   Este bloque muestra el promedio de estrellas de las encuestas del período
-                  seleccionado y su evolución en {surveyTrendWindowLabel}. Los períodos sin
+                  seleccionado y su evolución en {surveyTrendWindowCopy}. Los períodos sin
                   respuestas no se cuentan como 0; simplemente aparecen sin dato.
                 </p>
               </div>
@@ -2183,37 +2284,51 @@ export function DashboardScreen() {
                     <p className="dashboard-survey-empty">Todavía no hay evolución suficiente para mostrar.</p>
                   ) : (
                     <div className="dashboard-survey-line-chart">
-                      <svg viewBox="0 0 320 132" role="img" aria-label="Evolución general de encuestas">
-                        {surveyOverallChart.segments.map((segment, index) => (
-                          <path
-                            key={`survey-segment-${index + 1}`}
-                            d={segment}
-                            fill="none"
-                            stroke="#f59e0b"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        ))}
-                        {surveyOverallChart.points.map((point) => (
-                          <circle
-                            key={`survey-point-${point.label}-${point.count}`}
-                            cx={point.x}
-                            cy={point.y}
-                            r="4"
-                            fill="#f59e0b"
-                            stroke="#ffffff"
-                            strokeWidth="2"
-                          />
-                        ))}
-                      </svg>
-                      <div className="dashboard-survey-axis-labels">
-                        {surveyOverallTrend.map((point) => (
-                          <div key={point.id} className="dashboard-survey-line-label">
-                            <span>{point.label}</span>
-                            <span>{point.count > 0 ? formatNumber(point.count) : "-"}</span>
+                      <div className="dashboard-survey-line-chart-scroll">
+                        <div
+                          className="dashboard-survey-line-chart-inner"
+                          style={{ minWidth: `${surveyOverallChartWidth}px` }}
+                        >
+                          <svg
+                            viewBox={`0 0 ${surveyOverallChartWidth} 132`}
+                            role="img"
+                            aria-label="Evolución general de encuestas"
+                          >
+                            {surveyOverallChart.segments.map((segment, index) => (
+                              <path
+                                key={`survey-segment-${index + 1}`}
+                                d={segment}
+                                fill="none"
+                                stroke="#f59e0b"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            ))}
+                            {surveyOverallChart.points.map((point) => (
+                              <circle
+                                key={`survey-point-${point.label}-${point.count}`}
+                                cx={point.x}
+                                cy={point.y}
+                                r="4"
+                                fill="#f59e0b"
+                                stroke="#ffffff"
+                                strokeWidth="2"
+                              />
+                            ))}
+                          </svg>
+                          <div
+                            className="dashboard-survey-axis-labels"
+                            style={{ gridTemplateColumns: `repeat(${Math.max(surveyOverallTrend.length, 1)}, minmax(84px, 1fr))` }}
+                          >
+                            {surveyOverallTrend.map((point) => (
+                              <div key={point.id} className="dashboard-survey-line-label">
+                                <span>{point.label}</span>
+                                <span>{point.count > 0 ? formatNumber(point.count) : "-"}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2223,7 +2338,8 @@ export function DashboardScreen() {
                   {surveyQuestionCards.length === 0 ? (
                     <p className="dashboard-survey-empty">No hay preguntas con historial suficiente para mostrar evolución.</p>
                   ) : surveyQuestionCards.map((question) => {
-                    const questionChart = buildSurveyPolylinePoints(question.trend, 320, 100);
+                    const questionChartWidth = getSurveyChartWidth(question.trend.length, true);
+                    const questionChart = buildSurveyPolylinePoints(question.trend, questionChartWidth, 100);
                     const hasQuestionTrend = hasValidSurveyTrend(question.trend);
 
                     return (
@@ -2237,40 +2353,54 @@ export function DashboardScreen() {
                           <p className="dashboard-survey-empty">Sin respuestas en este período.</p>
                         ) : null}
                         {!hasQuestionTrend ? (
-                          <p className="dashboard-survey-empty">No hay suficiente historial para esta pregunta.</p>
+                          <p className="dashboard-survey-empty">Todavia no hay suficiente informacion para esta pregunta.</p>
                         ) : (
                           <div className="dashboard-survey-line-chart dashboard-survey-line-chart--compact">
-                            <svg viewBox="0 0 320 100" role="img" aria-label={`Evolución de ${question.title}`}>
-                              {questionChart.segments.map((segment, index) => (
-                                <path
-                                  key={`${question.id}-segment-${index + 1}`}
-                                  d={segment}
-                                  fill="none"
-                                  stroke="#f59e0b"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              ))}
-                              {questionChart.points.map((point) => (
-                                <circle
-                                  key={`${question.id}-point-${point.label}-${point.count}`}
-                                  cx={point.x}
-                                  cy={point.y}
-                                  r="3.5"
-                                  fill="#f59e0b"
-                                  stroke="#ffffff"
-                                  strokeWidth="1.5"
-                                />
-                              ))}
-                            </svg>
-                            <div className="dashboard-survey-axis-labels">
-                              {question.trend.map((point) => (
-                                <div key={point.id} className="dashboard-survey-line-label">
-                                  <span>{point.label}</span>
-                                  <span>{point.count > 0 ? formatNumber(point.count) : "-"}</span>
+                            <div className="dashboard-survey-line-chart-scroll">
+                              <div
+                                className="dashboard-survey-line-chart-inner"
+                                style={{ minWidth: `${questionChartWidth}px` }}
+                              >
+                                <svg
+                                  viewBox={`0 0 ${questionChartWidth} 100`}
+                                  role="img"
+                                  aria-label={`Evolución de ${question.title}`}
+                                >
+                                  {questionChart.segments.map((segment, index) => (
+                                    <path
+                                      key={`${question.id}-segment-${index + 1}`}
+                                      d={segment}
+                                      fill="none"
+                                      stroke="#f59e0b"
+                                      strokeWidth="2.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  ))}
+                                  {questionChart.points.map((point) => (
+                                    <circle
+                                      key={`${question.id}-point-${point.label}-${point.count}`}
+                                      cx={point.x}
+                                      cy={point.y}
+                                      r="3.5"
+                                      fill="#f59e0b"
+                                      stroke="#ffffff"
+                                      strokeWidth="1.5"
+                                    />
+                                  ))}
+                                </svg>
+                                <div
+                                  className="dashboard-survey-axis-labels"
+                                  style={{ gridTemplateColumns: `repeat(${Math.max(question.trend.length, 1)}, minmax(76px, 1fr))` }}
+                                >
+                                  {question.trend.map((point) => (
+                                    <div key={point.id} className="dashboard-survey-line-label">
+                                      <span>{point.label}</span>
+                                      <span>{point.count > 0 ? formatNumber(point.count) : "-"}</span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -2285,11 +2415,11 @@ export function DashboardScreen() {
 
         <article className="dashboard-card dashboard-panel">
           <div className="dashboard-panel-heading">
-            <p className="eyebrow">Insights</p>
-            <h2>Lecturas rapidas del negocio</h2>
+            <p className="eyebrow">Resumen</p>
+            <h2>Resumen del periodo</h2>
           </div>
           {insights.length === 0 ? (
-            <p className="dashboard-empty-copy">No hay insights disponibles para este periodo.</p>
+            <p className="dashboard-empty-copy">No hay novedades para este periodo.</p>
           ) : (
             <ul className="dashboard-insight-list">
               {insights.map((insight) => (
@@ -2303,7 +2433,7 @@ export function DashboardScreen() {
           <div className="dashboard-orders-detail-header">
             <div>
               <p className="eyebrow">Pedidos</p>
-              <h2 className="dashboard-orders-detail-title">Pedidos del periodo</h2>
+              <h2 className="dashboard-orders-detail-title">Detalle de pedidos del periodo</h2>
             </div>
             <button
               type="button"
@@ -2318,10 +2448,9 @@ export function DashboardScreen() {
           {isOrdersDetailInfoOpen ? (
             <div className="dashboard-orders-detail-info">
               <p>
-                {`Esta tabla muestra los pedidos pagados del período seleccionado (${ordersDetailCompletionLabel}). `}
-                El período sigue el mismo criterio comercial del dashboard. La fecha y hora
-                visible corresponden a la confirmación de pago cuando existe; si no existe, se
-                muestra la fecha de creación del pedido.
+                {`Esta tabla muestra los pedidos del período seleccionado (${ordersDetailCompletionCopy}). `}
+                La fecha y hora visibles corresponden a la confirmación de pago cuando existe; si
+                no existe, se muestra la fecha de creación del pedido.
               </p>
             </div>
           ) : null}
@@ -2331,7 +2460,7 @@ export function DashboardScreen() {
               className="dashboard-orders-detail-toggle"
               onClick={handleToggleOrdersDetail}
             >
-              {isOrdersDetailOpen ? "Ocultar pedidos" : "Ver pedidos del periodo"}
+              {isOrdersDetailOpen ? "Ocultar detalle" : "Ver detalle de pedidos"}
             </button>
             {currentOrdersDetail ? (
               <div className="dashboard-orders-detail-summary">
@@ -2342,13 +2471,13 @@ export function DashboardScreen() {
           </div>
           {isOrdersDetailOpen ? (
             isOrdersDetailLoading ? (
-              <p className="dashboard-orders-detail-state">Cargando pedidos del periodo...</p>
+              <p className="dashboard-orders-detail-state">Cargando detalle de pedidos...</p>
             ) : ordersDetailError ? (
               <p className="dashboard-orders-detail-state dashboard-orders-detail-state--error">{ordersDetailError}</p>
             ) : !currentOrdersDetail || ordersDetailRows.length === 0 ? (
-              <p className="dashboard-orders-detail-state">No hay pedidos pagados en este periodo.</p>
+              <p className="dashboard-orders-detail-state">No encontramos pedidos para este periodo.</p>
             ) : (
-              <div className="dashboard-orders-detail-list" aria-label="Pedidos pagados del periodo">
+              <div className="dashboard-orders-detail-list" aria-label="Detalle de pedidos del periodo">
                 {ordersDetailRows.map((order) => (
                   <div key={order.id} className="dashboard-orders-detail-row">
                     <div className="dashboard-orders-detail-field">
